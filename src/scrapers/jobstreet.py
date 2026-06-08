@@ -12,24 +12,38 @@ class JobStreetScraper(BaseScraper):
         
         browser = self.playwright.chromium.launch(
             headless=True,
-            args=["--disable-blink-features=AutomationControlled"]
+            args=[
+                "--disable-blink-features=AutomationControlled",
+                "--no-sandbox",
+                "--disable-setuid-sandbox"
+            ],
+            ignore_default_args=["--enable-automation"]
         )
         context = browser.new_context(
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            viewport={"width": 1280, "height": 800}
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+            viewport={"width": 1280, "height": 800},
+            locale="id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7",
+            timezone_id="Asia/Jakarta"
         )
         page = context.new_page()
         page.set_default_timeout(25000)
         
         try:
             encoded_query = urllib.parse.quote(query)
-            url = f"https://id.jobstreet.com/id/jobs?keywords={encoded_query}&location=Indonesia&daterange=3"
+            url = f"https://id.jobstreet.com/id/jobs?keywords={encoded_query}&daterange=3"
             
             page.goto(url, wait_until="domcontentloaded", timeout=25000)
             page.wait_for_timeout(6000) # Tunggu 6 detik agar render dinamis selesai
             
             cards = page.query_selector_all("article") or page.query_selector_all("[data-testid='job-card']")
             logger.info(f"JobStreet found {len(cards)} cards")
+            
+            if len(cards) == 0:
+                page_title = page.title()
+                content = page.content().lower()
+                logger.warning(f"JobStreet page loaded but found 0 cards. Page title: '{page_title}'")
+                if "cloudflare" in content or "verify you are human" in content or "just a moment" in content:
+                    logger.warning("JobStreet block detected: Cloudflare challenge page active.")
             
             for card in cards:
                 try:
