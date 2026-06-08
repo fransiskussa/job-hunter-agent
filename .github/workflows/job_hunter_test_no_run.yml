@@ -3,7 +3,7 @@ name: Job Hunter Agent - PIPELINE TEST ONLY
 on:
   workflow_dispatch:
   schedule:
-    - cron: '* * * * *'  # TEST ONLY (jalan tiap menit)
+    - cron: '*/5 * * * *'
 
 jobs:
   test-pipeline:
