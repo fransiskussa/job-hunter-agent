@@ -23,10 +23,11 @@ class JobStreetScraper(BaseScraper):
         
         try:
             encoded_query = urllib.parse.quote(query)
-            url = f"https://id.jobstreet.com/id/jobs?keywords={encoded_query}&location=Indonesia&daterange=3"
+            # Menggunakan parameter 'where' yang benar untuk JobStreet/SEEK
+            url = f"https://id.jobstreet.com/id/jobs?keywords={encoded_query}&where=Indonesia&daterange=3"
             
             page.goto(url, wait_until="domcontentloaded", timeout=25000)
-            page.wait_for_timeout(6000) # Tunggu 6 detik agar render dinamis selesai
+            page.wait_for_timeout(6000)
             
             cards = page.query_selector_all("article") or page.query_selector_all("[data-testid='job-card']")
             logger.info(f"JobStreet found {len(cards)} cards")
@@ -53,15 +54,20 @@ class JobStreetScraper(BaseScraper):
         location = ""
         description = ""
 
-        # Cari semua tautan <a> di dalam kartu
         links = card.query_selector_all("a")
+        
+        # 1. Cari tautan pekerjaan utama (link pertama yang bukan profil perusahaan)
         for link in links:
             href = link.get_attribute("href") or ""
             text = link.inner_text().strip()
             
-            # Jika mengarah ke detail pekerjaan dan teksnya tidak kosong, ini adalah link judul pekerjaan
-            if ("/job/" in href.lower() or "/id/job/" in href.lower()) and len(text) > 3:
-                title = text
+            if href and len(text) > 2:
+                # Lewati jika link menunjuk ke organisasi/perusahaan
+                if any(x in href.lower() for x in ["/companies/", "/organizations/", "company"]):
+                    continue
+                
+                # Teks link pertama yang valid adalah judul pekerjaan
+                title = text.split("\n")[0]
                 if href.startswith("http"):
                     url = href
                 else:
@@ -69,18 +75,20 @@ class JobStreetScraper(BaseScraper):
                 url = url.split("?")[0]
                 break
 
-        # Jika title tidak ketemu dari link pekerjaan, gunakan fallback
+        # 2. Cari Nama Perusahaan
+        for link in links:
+            href = link.get_attribute("href") or ""
+            text = link.inner_text().strip()
+            if any(x in href.lower() for x in ["/companies/", "/organizations/", "company"]) and len(text) > 1:
+                company = text
+                break
+
+        # Fallback jika title kosong
         if not title:
             title_el = card.query_selector("[data-testid='job-title']") or card.query_selector("h1") or card.query_selector("h3")
             title = title_el.inner_text().strip() if title_el else ""
 
-        # Dapatkan Nama Perusahaan (biasanya link yang mengarah ke /companies/ atau ber-testid company-name)
-        for link in links:
-            href = link.get_attribute("href") or ""
-            text = link.inner_text().strip()
-            if ("/companies/" in href.lower() or "company" in href.lower()) and len(text) > 1:
-                company = text
-                break
+        # Fallback jika company kosong
         if not company:
             company_el = card.query_selector("[data-testid='company-name']") or card.query_selector("[data-testid='job-company']")
             company = company_el.inner_text().strip() if company_el else ""

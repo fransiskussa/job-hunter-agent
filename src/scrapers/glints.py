@@ -26,9 +26,8 @@ class GlintsScraper(BaseScraper):
             url = f"https://glints.com/id/en/opportunities/jobs?keyword={encoded_query}&country=ID&sortBy=LATEST"
             
             page.goto(url, wait_until="domcontentloaded", timeout=25000)
-            page.wait_for_timeout(6000) # Tunggu 6 detik agar render dinamis selesai
+            page.wait_for_timeout(6000)
             
-            # Select job card wrappers
             cards = page.query_selector_all("[class*='JobCardSc__JobCardWrapper']") or page.query_selector_all("[data-testid='job-card-container']") or page.query_selector_all("a[href*='/opportunities/jobs/']")
             logger.info(f"Glints found {len(cards)} cards")
             
@@ -54,21 +53,21 @@ class GlintsScraper(BaseScraper):
         location = ""
         description = ""
 
-        # Cari semua link di dalam kartu
         links = card.query_selector_all("a")
-        
-        # Jika card sendiri adalah elemen <a>
         tag_name = card.evaluate("el => el.tagName").lower()
         if tag_name == "a":
             links = [card] + links
 
+        # 1. Cari tautan pekerjaan pertama yang tidak mengarah ke organisasi
         for link in links:
             href = link.get_attribute("href") or ""
             text = link.inner_text().strip()
             
-            # Cari link pekerjaan Glints
-            if "/opportunities/jobs/" in href.lower() and len(text) > 3:
-                title = text
+            if href and len(text) > 2:
+                if any(x in href.lower() for x in ["/organizations/", "/companies/", "company"]):
+                    continue
+                
+                title = text.split("\n")[0]
                 if href.startswith("http"):
                     url = href
                 else:
@@ -76,18 +75,20 @@ class GlintsScraper(BaseScraper):
                 url = url.split("?")[0]
                 break
 
-        # Cari Nama Perusahaan
+        # 2. Cari Nama Perusahaan
         for link in links:
             href = link.get_attribute("href") or ""
             text = link.inner_text().strip()
-            if "/organizations/" in href.lower() and len(text) > 1:
+            if any(x in href.lower() for x in ["/organizations/", "company"]) and len(text) > 1:
                 company = text
                 break
 
+        # Fallback jika title kosong
         if not title:
-            title_el = card.query_selector("[class*='JobCardSc__JobTitle']") or card.query_selector("h2") or card.query_selector("h3")
+            title_el = card.query_selector("[class*='JobCardSc__JobTitle']") or card.query_selector("[class*='JobTitle']") or card.query_selector("h2") or card.query_selector("h3")
             title = title_el.inner_text().strip() if title_el else ""
 
+        # Fallback jika company kosong
         if not company:
             company_el = card.query_selector("[class*='JobCardSc__CompanyName']") or card.query_selector("[class*='CompanyName']")
             company = company_el.inner_text().strip() if company_el else ""
