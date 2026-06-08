@@ -131,13 +131,13 @@ def run_pipeline():
             "post_url": post["post_url"]
         })
         
-    # 7. Sort Top 10 matches
+    # 7. Sort matches (sorting will be handled per-platform inside notifier, but we keep it sorted)
     matched_jobs_report.sort(key=lambda x: x["score"], reverse=True)
     matched_posts_report.sort(key=lambda x: x["score"], reverse=True)
     
     # 8. Send reports to Discord
     notifier = DiscordNotifier()
-    notifier.send_report(matched_jobs_report[:10], matched_posts_report[:10])
+    notifier.send_report(matched_jobs_report, matched_posts_report)
     logger.info("Pipeline Execution Completed.")
 
 if __name__ == "__main__":

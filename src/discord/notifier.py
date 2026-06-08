@@ -10,18 +10,47 @@ class DiscordNotifier:
         self.webhook_url = settings.DISCORD_WEBHOOK_URL
 
     def send_report(self, matched_jobs: list[dict], matched_posts: list[dict]) -> bool:
-        """Send daily reports of Jobs and Hiring Posts as Discord Embeds."""
-        success_jobs = self._send_jobs_report(matched_jobs)
-        success_posts = self._send_posts_report(matched_posts)
-        return success_jobs and success_posts
-
-    def _send_jobs_report(self, matched_jobs: list[dict]) -> bool:
-        if not matched_jobs:
-            logger.info("No matched jobs to send.")
-            return True
+        """Group matched jobs by source and send reports separated by platform."""
+        
+        # 1. Filter and sort by platform
+        linkedin_jobs = [j for j in matched_jobs if j.get("source") == "LinkedIn Jobs"]
+        jobstreet_jobs = [j for j in matched_jobs if j.get("source") == "JobStreet"]
+        glints_jobs = [j for j in matched_jobs if j.get("source") == "Glints"]
+        kalibrr_jobs = [j for j in matched_jobs if j.get("source") == "Kalibrr"]
+        
+        # Sort each list descending by score
+        linkedin_jobs.sort(key=lambda x: x.get("score", 0), reverse=True)
+        jobstreet_jobs.sort(key=lambda x: x.get("score", 0), reverse=True)
+        glints_jobs.sort(key=lambda x: x.get("score", 0), reverse=True)
+        kalibrr_jobs.sort(key=lambda x: x.get("score", 0), reverse=True)
+        matched_posts.sort(key=lambda x: x.get("score", 0), reverse=True)
+        
+        # 2. Send each platform's report
+        success = True
+        
+        if linkedin_jobs:
+            success &= self._send_platform_report("🚀 Top 10 LinkedIn Jobs", linkedin_jobs[:10])
+        
+        if matched_posts:
+            success &= self._send_posts_report("📢 Top 10 LinkedIn Hiring Posts", matched_posts[:10])
             
+        if jobstreet_jobs:
+            # JobStreet request is 20 jobs. Split into 2 messages of 10 embeds each due to Discord limit.
+            success &= self._send_platform_report("💼 Top 10 JobStreet Jobs (Part 1)", jobstreet_jobs[:10])
+            if len(jobstreet_jobs) > 10:
+                success &= self._send_platform_report("💼 Top 20 JobStreet Jobs (Part 2)", jobstreet_jobs[10:20])
+                
+        if glints_jobs:
+            success &= self._send_platform_report("🎨 Top 10 Glints Jobs", glints_jobs[:10])
+            
+        if kalibrr_jobs:
+            success &= self._send_platform_report("⚡ Top 10 Kalibrr Jobs", kalibrr_jobs[:10])
+            
+        return success
+
+    def _send_platform_report(self, title: str, jobs: list[dict]) -> bool:
         embeds = []
-        for idx, job in enumerate(matched_jobs[:10], 1):
+        for idx, job in enumerate(jobs, 1):
             skills = job.get("matched_skills", [])
             skills_text = ", ".join(skills) if skills else "None"
             score = job.get("score", 0)
@@ -30,15 +59,10 @@ class DiscordNotifier:
             
             embeds.append({
                 "title": f"{idx}. {job.get('title')}",
-                "description": f"**Company:** {job.get('company')}\n**Location:** {job.get('location')}\n**Match Score:** {score}%",
+                "description": f"**Company:** {job.get('company', 'Unknown')}\n**Location:** {job.get('location', 'Unknown')}\n**Match Score:** {score}%",
                 "url": job.get("url"),
                 "color": color,
                 "fields": [
-                    {
-                        "name": "Source",
-                        "value": job.get("source", "Jobs"),
-                        "inline": True
-                    },
                     {
                         "name": "Skills Matched",
                         "value": skills_text,
@@ -48,39 +72,29 @@ class DiscordNotifier:
             })
 
         payload = {
-            "content": "🚀 **Daily Job Report: Top 10 Matched Jobs**",
+            "content": f"**{title}**",
             "embeds": embeds
         }
         return self._send_payload(payload)
 
-    def _send_posts_report(self, matched_posts: list[dict]) -> bool:
-        if not matched_posts:
-            logger.info("No matched hiring posts to send.")
-            return True
-            
+    def _send_posts_report(self, title: str, posts: list[dict]) -> bool:
         embeds = []
-        for idx, post in enumerate(matched_posts[:10], 1):
+        for idx, post in enumerate(posts, 1):
             skills = post.get("matched_skills", [])
             skills_text = ", ".join(skills) if skills else "None"
             score = post.get("score", 0)
             
-            color = 3447003  # Blue for LinkedIn posts
-            
+            color = 3447003  # Blue
             content_snippet = post.get("content", "")
             if len(content_snippet) > 200:
                 content_snippet = content_snippet[:200] + "..."
                 
             embeds.append({
                 "title": f"{idx}. Post by {post.get('author_name')}",
-                "description": f"**Company:** {post.get('company')}\n**Content:** {content_snippet}\n**Match Score:** {score}%",
+                "description": f"**Company:** {post.get('company', 'LinkedIn Member')}\n**Content:** {content_snippet}\n**Match Score:** {score}%",
                 "url": post.get("post_url"),
                 "color": color,
                 "fields": [
-                    {
-                        "name": "Source",
-                        "value": "LinkedIn Posts",
-                        "inline": True
-                    },
                     {
                         "name": "Skills Matched",
                         "value": skills_text,
@@ -90,14 +104,14 @@ class DiscordNotifier:
             })
 
         payload = {
-            "content": "📢 **Daily Job Report: Top 10 LinkedIn Hiring Posts**",
+            "content": f"**{title}**",
             "embeds": embeds
         }
         return self._send_payload(payload)
 
     def _send_payload(self, payload: dict) -> bool:
         try:
-            res = requests.post(self.webhook_url, json=payload, timeout=10)
+            res = requests.post(self.webhook_url, json=payload, timeout=15)
             if res.status_code in [200, 204]:
                 logger.info("Discord embed sent successfully.")
                 return True
