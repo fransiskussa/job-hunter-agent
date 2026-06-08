@@ -12,39 +12,50 @@ class DiscordNotifier:
     def send_report(self, matched_jobs: list[dict], matched_posts: list[dict]) -> bool:
         """Group matched jobs by source and send reports separated by platform."""
         
+        # Filter out items with score = 0 (rejected by Gemini/irrelevant)
+        active_jobs = [j for j in matched_jobs if j.get("score", 0) > 0]
+        active_posts = [p for p in matched_posts if p.get("score", 0) > 0]
+
         # 1. Filter and sort by platform
-        linkedin_jobs = [j for j in matched_jobs if j.get("source") == "LinkedIn Jobs"]
-        jobstreet_jobs = [j for j in matched_jobs if j.get("source") == "JobStreet"]
-        glints_jobs = [j for j in matched_jobs if j.get("source") == "Glints"]
-        kalibrr_jobs = [j for j in matched_jobs if j.get("source") == "Kalibrr"]
+        linkedin_jobs = [j for j in active_jobs if j.get("source") == "LinkedIn Jobs"]
+        jobstreet_jobs = [j for j in active_jobs if j.get("source") == "JobStreet"]
+        glints_jobs = [j for j in active_jobs if j.get("source") == "Glints"]
+        kalibrr_jobs = [j for j in active_jobs if j.get("source") == "Kalibrr"]
         
         # Sort each list descending by score
         linkedin_jobs.sort(key=lambda x: x.get("score", 0), reverse=True)
         jobstreet_jobs.sort(key=lambda x: x.get("score", 0), reverse=True)
         glints_jobs.sort(key=lambda x: x.get("score", 0), reverse=True)
         kalibrr_jobs.sort(key=lambda x: x.get("score", 0), reverse=True)
-        matched_posts.sort(key=lambda x: x.get("score", 0), reverse=True)
+        active_posts.sort(key=lambda x: x.get("score", 0), reverse=True)
         
-        # 2. Send each platform's report
         success = True
-        
+
+        # Helper function to send in batches of 10
+        def send_in_batches(title_prefix: str, items: list[dict], limit: int, send_func) -> bool:
+            selected = items[:limit]
+            batch_success = True
+            for i in range(0, len(selected), 10):
+                chunk = selected[i:i+10]
+                part = f" (Part {i//10 + 1})" if len(selected) > 10 else ""
+                batch_success &= send_func(f"{title_prefix}{part}", chunk)
+            return batch_success
+
+        # 2. Send each platform's report based on requested limits
         if linkedin_jobs:
-            success &= self._send_platform_report("🚀 Top 10 LinkedIn Jobs", linkedin_jobs[:10])
+            success &= send_in_batches("🚀 Top LinkedIn Jobs", linkedin_jobs, 20, self._send_platform_report)
         
-        if matched_posts:
-            success &= self._send_posts_report("📢 Top 10 LinkedIn Hiring Posts", matched_posts[:10])
+        if active_posts:
+            success &= send_in_batches("📢 Top LinkedIn Hiring Posts", active_posts, 20, self._send_posts_report)
             
         if jobstreet_jobs:
-            # JobStreet request is 20 jobs. Split into 2 messages of 10 embeds each due to Discord limit.
-            success &= self._send_platform_report("💼 Top 10 JobStreet Jobs (Part 1)", jobstreet_jobs[:10])
-            if len(jobstreet_jobs) > 10:
-                success &= self._send_platform_report("💼 Top 20 JobStreet Jobs (Part 2)", jobstreet_jobs[10:20])
+            success &= send_in_batches("💼 Top JobStreet Jobs", jobstreet_jobs, 40, self._send_platform_report)
                 
         if glints_jobs:
-            success &= self._send_platform_report("🎨 Top 10 Glints Jobs", glints_jobs[:10])
+            success &= send_in_batches("🎨 Top Glints Jobs", glints_jobs, 20, self._send_platform_report)
             
         if kalibrr_jobs:
-            success &= self._send_platform_report("⚡ Top 10 Kalibrr Jobs", kalibrr_jobs[:10])
+            success &= send_in_batches("⚡ Top Kalibrr Jobs", kalibrr_jobs, 20, self._send_platform_report)
             
         return success
 
