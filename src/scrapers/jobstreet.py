@@ -19,17 +19,17 @@ class JobStreetScraper(BaseScraper):
             viewport={"width": 1280, "height": 800}
         )
         page = context.new_page()
-        page.set_default_timeout(20000)
+        page.set_default_timeout(25000)
         
         try:
             encoded_query = urllib.parse.quote(query)
-            url = f"https://id.jobstreet.com/id/jobs?keywords={encoded_query}"
+            url = f"https://id.jobstreet.com/id/jobs?keywords={encoded_query}&location=Indonesia&daterange=3"
             
-            page.goto(url, wait_until="domcontentloaded", timeout=20000)
-            page.wait_for_timeout(2000)
+            page.goto(url, wait_until="domcontentloaded", timeout=25000)
+            # Menunggu 5 detik agar React selesai merender konten di dalam skeleton card
+            page.wait_for_timeout(5000)
             
-            # Extract cards
-            cards = page.query_selector_all("article") or page.query_selector_all("[data-testid='job-card']") or page.query_selector_all("[data-card-type='JobCard']")
+            cards = page.query_selector_all("article") or page.query_selector_all("[data-testid='job-card']")
             logger.info(f"JobStreet found {len(cards)} cards")
             
             for card in cards[:20]:
@@ -48,12 +48,11 @@ class JobStreetScraper(BaseScraper):
         return raw_jobs
 
     def extract(self, card) -> dict:
-        # Title & Link elements
-        title_el = card.query_selector("[data-testid='job-title']") or card.query_selector("a[href*='/job/']") or card.query_selector("h1 a") or card.query_selector("h3 a")
+        title_el = card.query_selector("[data-testid='job-title']") or card.query_selector("a[href*='/job/']") or card.query_selector("h1 a") or card.query_selector("h3 a") or card.query_selector("a")
         title = title_el.inner_text().strip() if title_el else ""
         
         url = ""
-        link_el = card.query_selector("a[href*='/job/']") or title_el
+        link_el = card.query_selector("a[href*='/job/']") or card.query_selector("a[href*='/id/job/']") or title_el
         if link_el:
             href = link_el.get_attribute("href")
             if href:
@@ -63,15 +62,12 @@ class JobStreetScraper(BaseScraper):
                     url = f"https://id.jobstreet.com{href}"
                 url = url.split("?")[0]
                 
-        # Company
         company_el = card.query_selector("[data-testid='company-name']") or card.query_selector("a[href*='/companies/']") or card.query_selector("[data-testid='job-company']")
         company = company_el.inner_text().strip() if company_el else ""
         
-        # Location
         location_el = card.query_selector("[data-testid='job-location']") or card.query_selector("span[data-testid='job-location']")
         location = location_el.inner_text().strip() if location_el else ""
         
-        # Description
         desc_el = card.query_selector("[data-testid='job-teaser']") or card.query_selector("ul") or card.query_selector("span")
         description = desc_el.inner_text().strip() if desc_el else ""
         

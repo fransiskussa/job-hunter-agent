@@ -19,13 +19,15 @@ class KalibrrScraper(BaseScraper):
             viewport={"width": 1280, "height": 800}
         )
         page = context.new_page()
+        page.set_default_timeout(25000)
         
         try:
             encoded_query = urllib.parse.quote(query)
-            url = f"https://www.kalibrr.com/job-board/te/{encoded_query}"
+            url = f"https://www.kalibrr.com/job-board/te/{encoded_query}?country=Indonesia&sort=freshness"
             
-            page.goto(url, wait_until="networkidle", timeout=30000)
-            page.wait_for_timeout(3000)
+            page.goto(url, wait_until="domcontentloaded", timeout=25000)
+            # Menunggu 5 detik agar React selesai merender konten di dalam skeleton card
+            page.wait_for_timeout(5000)
             
             cards = page.query_selector_all(".k-border-b") or page.query_selector_all("[itemscope][itemtype='http://schema.org/JobPosting']") or page.query_selector_all("a[href*='/jobs/']")
             logger.info(f"Kalibrr found {len(cards)} cards")
@@ -33,7 +35,7 @@ class KalibrrScraper(BaseScraper):
             for card in cards[:10]:
                 try:
                     raw_data = self.extract(card)
-                    if raw_data:
+                    if raw_data and raw_data.get("title") and raw_data.get("url"):
                         raw_jobs.append(raw_data)
                 except Exception as e:
                     logger.debug(f"Kalibrr error extracting card: {e}")

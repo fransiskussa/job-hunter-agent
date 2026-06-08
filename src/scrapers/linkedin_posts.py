@@ -90,11 +90,31 @@ class LinkedInPostsScraper(BaseScraper):
         return {}
 
     def normalize(self, raw_data: dict) -> dict:
+        content_lower = raw_data.get("content", "").lower()
+        post_url = raw_data.get("post_url", "")
+        
+        # Daftar kata kunci lokasi luar negeri yang akan di-exclude
+        exclude_locations = [
+            "india", "pune", "bangalore", "bengaluru", "noida", "gurgaon", 
+            "hyderabad", "mumbai", "chennai", "delhi", "germany", "japan", 
+            "usa", "uk", "london", "singapore", "malaysia", "vietnam"
+        ]
+        
+        # Kata kunci yang menunjukkan valid untuk Indonesia / Remote
+        indonesia_keywords = ["indonesia", "jakarta", "tangerang", "salatiga", "remote", "wfh", "wib", "rupiah", "idr", "nicepay"]
+        
+        has_exclude = any(loc in content_lower or loc in post_url.lower() for loc in exclude_locations)
+        has_indo = any(kw in content_lower or kw in post_url.lower() for kw in indonesia_keywords)
+        
+        # Filter: jika mengandung lokasi luar dan TIDAK menyebut Indonesia/Remote, maka skip
+        if has_exclude and not has_indo:
+            logger.info(f"Skipping post {post_url} due to international location indicators (India/etc).")
+            return {}
+
         author_name = raw_data.get("author_name", "Recruiter / Hiring Manager")
         author_profile_url = raw_data.get("author_profile_url", "https://www.linkedin.com")
         company = raw_data.get("company", "LinkedIn Member")
         content = raw_data.get("content", f"Hiring for {raw_data.get('query_used', 'Software Engineer')}. Details at post link.")
-        post_url = raw_data.get("post_url", "https://www.linkedin.com")
         
         return {
             "author_name": author_name,

@@ -15,20 +15,20 @@ class GlintsScraper(BaseScraper):
             args=["--disable-blink-features=AutomationControlled"]
         )
         context = browser.new_context(
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, integrates/Gecko) Chrome/120.0.0.0 Safari/537.36",
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             viewport={"width": 1280, "height": 800}
         )
         page = context.new_page()
-        page.set_default_timeout(20000)
+        page.set_default_timeout(25000)
         
         try:
             encoded_query = urllib.parse.quote(query)
-            url = f"https://glints.com/id/en/opportunities/jobs?keyword={encoded_query}"
+            url = f"https://glints.com/id/en/opportunities/jobs?keyword={encoded_query}&country=ID&sortBy=LATEST"
             
-            page.goto(url, wait_until="domcontentloaded", timeout=20000)
-            page.wait_for_timeout(2000)
+            page.goto(url, wait_until="domcontentloaded", timeout=25000)
+            # Menunggu 5 detik agar React selesai merender konten di dalam skeleton card
+            page.wait_for_timeout(5000)
             
-            # Select job card wrappers
             cards = page.query_selector_all("[class*='JobCardSc__JobCardWrapper']") or page.query_selector_all("[data-testid='job-card-container']") or page.query_selector_all("a[href*='/opportunities/jobs/']")
             logger.info(f"Glints found {len(cards)} cards")
             
@@ -62,11 +62,11 @@ class GlintsScraper(BaseScraper):
                 url = url.split("?")[0]
                 
         # Find Title
-        title_el = card.query_selector("[class*='JobCardSc__JobTitle']") or card.query_selector("[class*='JobTitle']") or card.query_selector("h2") or card.query_selector("h3") or card.query_selector("a[class*='JobTitle']")
+        title_el = card.query_selector("[class*='JobCardSc__JobTitle']") or card.query_selector("[class*='JobTitle']") or card.query_selector("h2") or card.query_selector("h3") or card.query_selector("a[class*='JobTitle']") or card.query_selector("a")
         title = title_el.inner_text().strip() if title_el else ""
         
         # Company
-        company_el = card.query_selector("[class*='JobCardSc__CompanyName']") or card.query_selector("[class*='CompanyName']") or card.query_selector("[class*='CompanyNameContainer']")
+        company_el = card.query_selector("[class*='JobCardSc__CompanyName']") or card.query_selector("[class*='CompanyName']") or card.query_selector("[class*='CompanyNameContainer']") or card.query_selector("span")
         company = company_el.inner_text().strip() if company_el else ""
         
         # Location
