@@ -36,18 +36,18 @@ class LinkedInPostsScraper(BaseScraper):
         page = context.new_page()
         
         try:
-            # Search Google for public LinkedIn posts
-            search_query = f'site:linkedin.com/posts "hiring" "{query}"'
+            # Search Google for public LinkedIn posts in Indonesia
+            search_query = f'site:linkedin.com/posts "hiring" "{query}" "Indonesia"'
             encoded_query = urllib.parse.quote(search_query)
             url = f"https://www.google.com/search?q={encoded_query}"
             
-            page.goto(url, wait_until="networkidle", timeout=30000)
-            page.wait_for_timeout(3000)
+            page.goto(url, wait_until="domcontentloaded", timeout=20000)
+            page.wait_for_timeout(2000)
             
             links = page.query_selector_all("a[href*='linkedin.com/posts/']") or page.query_selector_all("a[href*='linkedin.com/feed/update/']")
             logger.info(f"LinkedIn Posts found {len(links)} result links from Google Search")
             
-            for link in links[:5]:
+            for link in links[:20]:
                 try:
                     href = link.get_attribute("href")
                     if href:

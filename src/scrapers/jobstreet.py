@@ -19,21 +19,23 @@ class JobStreetScraper(BaseScraper):
             viewport={"width": 1280, "height": 800}
         )
         page = context.new_page()
+        page.set_default_timeout(20000)
         
         try:
             encoded_query = urllib.parse.quote(query)
             url = f"https://id.jobstreet.com/id/jobs?keywords={encoded_query}"
             
-            page.goto(url, wait_until="networkidle", timeout=30000)
-            page.wait_for_timeout(3000)
+            page.goto(url, wait_until="domcontentloaded", timeout=20000)
+            page.wait_for_timeout(2000)
             
+            # Extract cards
             cards = page.query_selector_all("article") or page.query_selector_all("[data-testid='job-card']") or page.query_selector_all("[data-card-type='JobCard']")
             logger.info(f"JobStreet found {len(cards)} cards")
             
-            for card in cards[:10]:
+            for card in cards[:20]:
                 try:
                     raw_data = self.extract(card)
-                    if raw_data:
+                    if raw_data and raw_data.get("title") and raw_data.get("url"):
                         raw_jobs.append(raw_data)
                 except Exception as e:
                     logger.debug(f"JobStreet error extracting card: {e}")
@@ -46,7 +48,8 @@ class JobStreetScraper(BaseScraper):
         return raw_jobs
 
     def extract(self, card) -> dict:
-        title_el = card.query_selector("[data-testid='job-title']") or card.query_selector("a[href*='/job/']")
+        # Title & Link elements
+        title_el = card.query_selector("[data-testid='job-title']") or card.query_selector("a[href*='/job/']") or card.query_selector("h1 a") or card.query_selector("h3 a")
         title = title_el.inner_text().strip() if title_el else ""
         
         url = ""
@@ -60,13 +63,16 @@ class JobStreetScraper(BaseScraper):
                     url = f"https://id.jobstreet.com{href}"
                 url = url.split("?")[0]
                 
-        company_el = card.query_selector("[data-testid='company-name']") or card.query_selector("a[href*='/companies/']")
+        # Company
+        company_el = card.query_selector("[data-testid='company-name']") or card.query_selector("a[href*='/companies/']") or card.query_selector("[data-testid='job-company']")
         company = company_el.inner_text().strip() if company_el else ""
         
-        location_el = card.query_selector("[data-testid='job-location']")
+        # Location
+        location_el = card.query_selector("[data-testid='job-location']") or card.query_selector("span[data-testid='job-location']")
         location = location_el.inner_text().strip() if location_el else ""
         
-        desc_el = card.query_selector("[data-testid='job-teaser']") or card.query_selector("ul")
+        # Description
+        desc_el = card.query_selector("[data-testid='job-teaser']") or card.query_selector("ul") or card.query_selector("span")
         description = desc_el.inner_text().strip() if desc_el else ""
         
         return {

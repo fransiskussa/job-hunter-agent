@@ -19,22 +19,23 @@ class LinkedInScraper(BaseScraper):
             viewport={"width": 1280, "height": 800}
         )
         page = context.new_page()
+        page.set_default_timeout(20000)
         
         try:
             encoded_query = urllib.parse.quote(query)
             encoded_location = urllib.parse.quote(location)
             url = f"https://www.linkedin.com/jobs/search?keywords={encoded_query}&location={encoded_location}&f_TPR=r86400"
             
-            page.goto(url, wait_until="networkidle", timeout=30000)
-            page.wait_for_timeout(3000)
+            page.goto(url, wait_until="domcontentloaded", timeout=20000)
+            page.wait_for_timeout(2000)
             
             cards = page.query_selector_all(".jobs-search__results-list li") or page.query_selector_all(".base-card")
             logger.info(f"LinkedIn found {len(cards)} cards")
             
-            for card in cards[:10]:
+            for card in cards[:20]:
                 try:
                     raw_data = self.extract(card)
-                    if raw_data:
+                    if raw_data and raw_data.get("title") and raw_data.get("url"):
                         raw_jobs.append(raw_data)
                 except Exception as e:
                     logger.debug(f"LinkedIn error extracting card: {e}")
