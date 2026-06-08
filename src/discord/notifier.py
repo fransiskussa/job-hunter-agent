@@ -19,11 +19,12 @@ class DiscordNotifier:
         - Glints: 20 jobs
         - Kalibrr: 10 jobs
         """
-        # 1. Filter by platform
-        linkedin_jobs = [j for j in matched_jobs if j.get("source") == "LinkedIn Jobs"]
-        jobstreet_jobs = [j for j in matched_jobs if j.get("source") == "JobStreet"]
-        glints_jobs = [j for j in matched_jobs if j.get("source") == "Glints"]
-        kalibrr_jobs = [j for j in matched_jobs if j.get("source") == "Kalibrr"]
+        # 1. Filter by platform and ensure quality score >= 40 (must match role or at least one skill)
+        linkedin_jobs = [j for j in matched_jobs if j.get("source") == "LinkedIn Jobs" and j.get("score", 0) >= 40]
+        jobstreet_jobs = [j for j in matched_jobs if j.get("source") == "JobStreet" and j.get("score", 0) >= 40]
+        glints_jobs = [j for j in matched_jobs if j.get("source") == "Glints" and j.get("score", 0) >= 40]
+        kalibrr_jobs = [j for j in matched_jobs if j.get("source") == "Kalibrr" and j.get("score", 0) >= 40]
+        matched_posts = [p for p in matched_posts if p.get("score", 0) >= 40]
         
         # Sort each platform by score DESC
         linkedin_jobs.sort(key=lambda x: x.get("score", 0), reverse=True)

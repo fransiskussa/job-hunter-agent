@@ -76,7 +76,7 @@ class JobMatcher:
             profile_context = f"Konten CV Asli:\n{self.cv_text}"
 
         prompt = f"""
-        Bertindaklah sebagai Senior Technical Recruiter. Evaluasi kecocokan antara Profil/CV Kandidat dan Lowongan Kerja berikut.
+        Bertindaklah sebagai Senior Technical Recruiter yang sangat ketat dan objektif. Evaluasi kecocokan antara Profil/CV Kandidat dan Lowongan Kerja berikut.
 
         [PROFIL / CV KANDIDAT]
         {profile_context}
@@ -87,14 +87,16 @@ class JobMatcher:
         - Lokasi: {location}
         - Deskripsi Pekerjaan: {description}
 
-        Tugas Anda:
-        1. Hitung skor kecocokan kandidat dengan pekerjaan (skala 0 - 100). Berikan nilai secara ketat dan jujur.
-        2. Tentukan daftar keahlian kandidat (maksimal 6) yang benar-benar cocok dan relevan dengan posisi tersebut.
+        [ATURAN EVALUASI & HUKUMAN SKOR - WAJIB DIPATUHI]:
+        1. Lowongan WAJIB berupa posisi di bidang IT, Software Engineering, atau Teknologi Informasi (seperti: Software Engineer, Backend, Frontend, Fullstack, Mobile Developer, DevOps, QA, AI/ML, Data Engineer, IT Support).
+        2. Jika lowongan berada DI LUAR bidang IT/Teknologi (CONTOHNYA: Driver/Supir, Sales, Akuntan/Keuangan, Host Live E-commerce, Desain Grafis, Admin, Tukang Obras, Kasir, atau pekerjaan manual/non-IT lainnya), Anda WAJIB memberikan nilai "score" EXACTLY 0. Jangan memberikan toleransi skor!
+        3. Skor kecocokan dinilai dari kecocokan Tech Stack (skills) yang dibutuhkan lowongan terhadap CV kandidat. Berikan nilai secara jujur dan ketat (skala 0 - 100).
+        4. Jika hanya cocok lokasi tetapi peran dan teknologi tidak cocok, skor maksimal adalah 10.
 
         Kembalikan respon HANYA dalam format JSON mentah tanpa format Markdown atau penjelasan tambahan seperti berikut:
         {{
-          "score": 85,
-          "matched_skills": ["Python", "Docker", "PostgreSQL"]
+          "score": 0,
+          "matched_skills": []
         }}
         """
 
