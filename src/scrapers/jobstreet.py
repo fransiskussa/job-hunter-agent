@@ -26,8 +26,7 @@ class JobStreetScraper(BaseScraper):
             url = f"https://id.jobstreet.com/id/jobs?keywords={encoded_query}&location=Indonesia&daterange=3"
             
             page.goto(url, wait_until="domcontentloaded", timeout=25000)
-            # Menunggu 5 detik agar React selesai merender konten di dalam skeleton card
-            page.wait_for_timeout(5000)
+            page.wait_for_timeout(6000) # Tunggu 6 detik agar render dinamis selesai
             
             cards = page.query_selector_all("article") or page.query_selector_all("[data-testid='job-card']")
             logger.info(f"JobStreet found {len(cards)} cards")
@@ -48,29 +47,50 @@ class JobStreetScraper(BaseScraper):
         return raw_jobs
 
     def extract(self, card) -> dict:
-        title_el = card.query_selector("[data-testid='job-title']") or card.query_selector("a[href*='/job/']") or card.query_selector("h1 a") or card.query_selector("h3 a") or card.query_selector("a")
-        title = title_el.inner_text().strip() if title_el else ""
-        
+        title = ""
         url = ""
-        link_el = card.query_selector("a[href*='/job/']") or card.query_selector("a[href*='/id/job/']") or title_el
-        if link_el:
-            href = link_el.get_attribute("href")
-            if href:
+        company = ""
+        location = ""
+        description = ""
+
+        # Cari semua tautan <a> di dalam kartu
+        links = card.query_selector_all("a")
+        for link in links:
+            href = link.get_attribute("href") or ""
+            text = link.inner_text().strip()
+            
+            # Jika mengarah ke detail pekerjaan dan teksnya tidak kosong, ini adalah link judul pekerjaan
+            if ("/job/" in href.lower() or "/id/job/" in href.lower()) and len(text) > 3:
+                title = text
                 if href.startswith("http"):
                     url = href
                 else:
                     url = f"https://id.jobstreet.com{href}"
                 url = url.split("?")[0]
-                
-        company_el = card.query_selector("[data-testid='company-name']") or card.query_selector("a[href*='/companies/']") or card.query_selector("[data-testid='job-company']")
-        company = company_el.inner_text().strip() if company_el else ""
-        
-        location_el = card.query_selector("[data-testid='job-location']") or card.query_selector("span[data-testid='job-location']")
-        location = location_el.inner_text().strip() if location_el else ""
-        
-        desc_el = card.query_selector("[data-testid='job-teaser']") or card.query_selector("ul") or card.query_selector("span")
+                break
+
+        # Jika title tidak ketemu dari link pekerjaan, gunakan fallback
+        if not title:
+            title_el = card.query_selector("[data-testid='job-title']") or card.query_selector("h1") or card.query_selector("h3")
+            title = title_el.inner_text().strip() if title_el else ""
+
+        # Dapatkan Nama Perusahaan (biasanya link yang mengarah ke /companies/ atau ber-testid company-name)
+        for link in links:
+            href = link.get_attribute("href") or ""
+            text = link.inner_text().strip()
+            if ("/companies/" in href.lower() or "company" in href.lower()) and len(text) > 1:
+                company = text
+                break
+        if not company:
+            company_el = card.query_selector("[data-testid='company-name']") or card.query_selector("[data-testid='job-company']")
+            company = company_el.inner_text().strip() if company_el else ""
+
+        location_el = card.query_selector("[data-testid='job-location']")
+        location = location_el.inner_text().strip() if location_el else "Indonesia"
+
+        desc_el = card.query_selector("[data-testid='job-teaser']") or card.query_selector("ul")
         description = desc_el.inner_text().strip() if desc_el else ""
-        
+
         return {
             "title": title,
             "company": company,

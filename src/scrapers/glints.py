@@ -26,9 +26,9 @@ class GlintsScraper(BaseScraper):
             url = f"https://glints.com/id/en/opportunities/jobs?keyword={encoded_query}&country=ID&sortBy=LATEST"
             
             page.goto(url, wait_until="domcontentloaded", timeout=25000)
-            # Menunggu 5 detik agar React selesai merender konten di dalam skeleton card
-            page.wait_for_timeout(5000)
+            page.wait_for_timeout(6000) # Tunggu 6 detik agar render dinamis selesai
             
+            # Select job card wrappers
             cards = page.query_selector_all("[class*='JobCardSc__JobCardWrapper']") or page.query_selector_all("[data-testid='job-card-container']") or page.query_selector_all("a[href*='/opportunities/jobs/']")
             logger.info(f"Glints found {len(cards)} cards")
             
@@ -48,35 +48,56 @@ class GlintsScraper(BaseScraper):
         return raw_jobs
 
     def extract(self, card) -> dict:
-        tag_name = card.evaluate("el => el.tagName").lower()
-        
-        link_el = card if tag_name == "a" else card.query_selector("a[href*='/opportunities/jobs/']")
+        title = ""
         url = ""
-        if link_el:
-            href = link_el.get_attribute("href")
-            if href:
+        company = ""
+        location = ""
+        description = ""
+
+        # Cari semua link di dalam kartu
+        links = card.query_selector_all("a")
+        
+        # Jika card sendiri adalah elemen <a>
+        tag_name = card.evaluate("el => el.tagName").lower()
+        if tag_name == "a":
+            links = [card] + links
+
+        for link in links:
+            href = link.get_attribute("href") or ""
+            text = link.inner_text().strip()
+            
+            # Cari link pekerjaan Glints
+            if "/opportunities/jobs/" in href.lower() and len(text) > 3:
+                title = text
                 if href.startswith("http"):
                     url = href
                 else:
                     url = f"https://glints.com{href}"
                 url = url.split("?")[0]
-                
-        # Find Title
-        title_el = card.query_selector("[class*='JobCardSc__JobTitle']") or card.query_selector("[class*='JobTitle']") or card.query_selector("h2") or card.query_selector("h3") or card.query_selector("a[class*='JobTitle']") or card.query_selector("a")
-        title = title_el.inner_text().strip() if title_el else ""
-        
-        # Company
-        company_el = card.query_selector("[class*='JobCardSc__CompanyName']") or card.query_selector("[class*='CompanyName']") or card.query_selector("[class*='CompanyNameContainer']") or card.query_selector("span")
-        company = company_el.inner_text().strip() if company_el else ""
-        
-        # Location
-        location_el = card.query_selector("[class*='JobCardSc__Location']") or card.query_selector("[class*='CardLocation']") or card.query_selector("[class*='LocationContainer']")
-        location = location_el.inner_text().strip() if location_el else ""
-        
-        # Description
-        desc_el = card.query_selector("[class*='JobCardSc__DescriptionSnippet']") or card.query_selector("[class*='DescriptionSnippet']") or card.query_selector("p")
+                break
+
+        # Cari Nama Perusahaan
+        for link in links:
+            href = link.get_attribute("href") or ""
+            text = link.inner_text().strip()
+            if "/organizations/" in href.lower() and len(text) > 1:
+                company = text
+                break
+
+        if not title:
+            title_el = card.query_selector("[class*='JobCardSc__JobTitle']") or card.query_selector("h2") or card.query_selector("h3")
+            title = title_el.inner_text().strip() if title_el else ""
+
+        if not company:
+            company_el = card.query_selector("[class*='JobCardSc__CompanyName']") or card.query_selector("[class*='CompanyName']")
+            company = company_el.inner_text().strip() if company_el else ""
+
+        location_el = card.query_selector("[class*='JobCardSc__Location']") or card.query_selector("[class*='CardLocation']")
+        location = location_el.inner_text().strip() if location_el else "Indonesia"
+
+        desc_el = card.query_selector("[class*='JobCardSc__DescriptionSnippet']") or card.query_selector("p")
         description = desc_el.inner_text().strip() if desc_el else ""
-        
+
         return {
             "title": title,
             "company": company,

@@ -26,8 +26,7 @@ class KalibrrScraper(BaseScraper):
             url = f"https://www.kalibrr.com/job-board/te/{encoded_query}?country=Indonesia&sort=freshness"
             
             page.goto(url, wait_until="domcontentloaded", timeout=25000)
-            # Menunggu 5 detik agar React selesai merender konten di dalam skeleton card
-            page.wait_for_timeout(5000)
+            page.wait_for_timeout(6000) # Tunggu 6 detik agar render dinamis selesai
             
             cards = page.query_selector_all(".k-border-b") or page.query_selector_all("[itemscope][itemtype='http://schema.org/JobPosting']") or page.query_selector_all("a[href*='/jobs/']")
             logger.info(f"Kalibrr found {len(cards)} cards")
@@ -48,28 +47,50 @@ class KalibrrScraper(BaseScraper):
         return raw_jobs
 
     def extract(self, card) -> dict:
-        title_el = card.query_selector("[itemprop='title']") or card.query_selector("h2 a") or card.query_selector("a")
-        title = title_el.inner_text().strip() if title_el else ""
-        
+        title = ""
         url = ""
-        link_el = card.query_selector("a[href*='/c/'][href*='/jobs/']") or card.query_selector("a[href*='/jobs/']") or title_el
-        if link_el:
-            href = link_el.get_attribute("href")
-            if href:
+        company = ""
+        location = ""
+        description = ""
+
+        links = card.query_selector_all("a")
+        
+        # Link-inspection
+        for link in links:
+            href = link.get_attribute("href") or ""
+            text = link.inner_text().strip()
+            
+            # Cari link pekerjaan Kalibrr
+            if ("/jobs/" in href.lower() or "/c/" in href.lower()) and len(text) > 3:
+                title = text
                 if href.startswith("http"):
                     url = href
                 else:
                     url = f"https://www.kalibrr.com{href}"
                 url = url.split("?")[0]
-                
-        company_el = card.query_selector("[itemprop='hiringOrganization']") or card.query_selector(".k-text-subdued a") or card.query_selector("span.k-text-xs")
-        company = company_el.inner_text().strip() if company_el else ""
-        
+                break
+
+        # Cari Nama Perusahaan
+        for link in links:
+            href = link.get_attribute("href") or ""
+            text = link.inner_text().strip()
+            if "/c/" in href.lower() and len(text) > 1 and text != title:
+                company = text
+                break
+
+        if not title:
+            title_el = card.query_selector("[itemprop='title']") or card.query_selector("h2 a") or card.query_selector("a")
+            title = title_el.inner_text().strip() if title_el else ""
+
+        if not company:
+            company_el = card.query_selector("[itemprop='hiringOrganization']") or card.query_selector(".k-text-subdued a")
+            company = company_el.inner_text().strip() if company_el else ""
+
         location_el = card.query_selector("[itemprop='jobLocation']") or card.query_selector(".k-text-subdued")
-        location = location_el.inner_text().strip() if location_el else ""
-        
+        location = location_el.inner_text().strip() if location_el else "Indonesia"
+
         description = f"Job opportunity for a {title} at {company} in {location}."
-        
+
         return {
             "title": title,
             "company": company,
