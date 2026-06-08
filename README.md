@@ -55,7 +55,7 @@ graph TD
     D1 & D2 & D3 & D4 --> E[Normalisasi Data & Simpan ke Supabase]
     E --> F[Run Matching Engine & Simpan Hasil Match]
     F --> G[Sort & Filter Top 10 Jobs & Top 10 Posts]
-    G --> H[Kirim ke Discord Webhook (Rich Embeds)]
+    G --> H["Kirim ke Discord Webhook (Rich Embeds)"]
 ```
 
 ---
