@@ -1,9 +1,8 @@
 name: Echo time2
 on: 
   schedule: 
-    - cron: "01 14 * * *"  # Berjalan setiap 10 menit
-      timezone: "Asia/Jakarta"
-  workflow_dispatch:        # Tombol manual tetap ada untuk testing langsung
+    - cron: '5 * * * *'  
+  workflow_dispatch:        
 
 jobs:
   automated_test_1:
@@ -11,4 +10,4 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Show repository info
-        run: echo $(date)
+        run: echo "hello world"
