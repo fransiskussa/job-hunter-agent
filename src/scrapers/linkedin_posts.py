@@ -47,7 +47,7 @@ class LinkedInPostsScraper(BaseScraper):
             links = page.query_selector_all("a[href*='linkedin.com/posts/']") or page.query_selector_all("a[href*='linkedin.com/feed/update/']")
             logger.info(f"LinkedIn Posts found {len(links)} result links from Google Search")
             
-            for link in links:
+            for link in links[:20]:
                 try:
                     href = link.get_attribute("href")
                     if href:

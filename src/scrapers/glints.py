@@ -32,7 +32,7 @@ class GlintsScraper(BaseScraper):
             cards = page.query_selector_all("[class*='JobCardSc__JobCardWrapper']") or page.query_selector_all("[data-testid='job-card-container']") or page.query_selector_all("a[href*='/opportunities/jobs/']")
             logger.info(f"Glints found {len(cards)} cards")
             
-            for card in cards:
+            for card in cards[:10]:
                 try:
                     raw_data = self.extract(card)
                     if raw_data and raw_data.get("title") and raw_data.get("url"):

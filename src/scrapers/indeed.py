@@ -12,40 +12,25 @@ class IndeedScraper(BaseScraper):
         
         browser = self.playwright.chromium.launch(
             headless=True,
-            args=[
-                "--disable-blink-features=AutomationControlled",
-                "--no-sandbox",
-                "--disable-setuid-sandbox"
-            ],
-            ignore_default_args=["--enable-automation"]
+            args=["--disable-blink-features=AutomationControlled"]
         )
         context = browser.new_context(
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-            viewport={"width": 1280, "height": 800},
-            locale="id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7",
-            timezone_id="Asia/Jakarta"
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            viewport={"width": 1280, "height": 800}
         )
         page = context.new_page()
         page.set_default_timeout(25000)
         
         try:
             encoded_query = urllib.parse.quote(query)
-            # Stripped l=Indonesia as it is redundant on id.indeed.com and might trigger detection
-            url = f"https://id.indeed.com/jobs?q={encoded_query}&fromage=3"
+            url = f"https://id.indeed.com/jobs?q={encoded_query}&l=Indonesia&fromage=3"
             page.goto(url, wait_until="domcontentloaded", timeout=25000)
             page.wait_for_timeout(6000) # Tunggu 6 detik agar render dinamis selesai
             
             cards = page.query_selector_all(".result") or page.query_selector_all("[class*='job_seen_beacon']") or page.query_selector_all("td.resultContent")
             logger.info(f"Indeed found {len(cards)} cards")
             
-            if len(cards) == 0:
-                page_title = page.title()
-                content = page.content().lower()
-                logger.warning(f"Indeed page loaded but found 0 cards. Page title: '{page_title}'")
-                if "cloudflare" in content or "verify you are human" in content or "just a moment" in content:
-                    logger.warning("Indeed block detected: Cloudflare challenge page active.")
-            
-            for card in cards:
+            for card in cards[:10]:
                 try:
                     raw_data = self.extract(card)
                     if raw_data and raw_data.get("title") and raw_data.get("url"):

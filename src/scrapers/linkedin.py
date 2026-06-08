@@ -32,7 +32,7 @@ class LinkedInScraper(BaseScraper):
             cards = page.query_selector_all(".jobs-search__results-list li") or page.query_selector_all(".base-card")
             logger.info(f"LinkedIn found {len(cards)} cards")
             
-            for card in cards:
+            for card in cards[:20]:
                 try:
                     raw_data = self.extract(card)
                     if raw_data and raw_data.get("title") and raw_data.get("url"):
