@@ -1,0 +1,18 @@
+# Source - https://stackoverflow.com/a/79919806
+# Posted by Ironotor, modified by community. See post 'Timeline' for change history
+# Retrieved 2026-06-08, License - CC BY-SA 4.0
+
+
+name: Echo time
+on: 
+  workflow_dispatch:
+  push: 
+  schedule: 
+    - cron: "* * * * *"
+jobs:
+  automated_test_1:
+    name: Echo time
+    runs-on: ubuntu-latest
+    steps:
+      - name: Show repository info
+        run: echo $(date)
