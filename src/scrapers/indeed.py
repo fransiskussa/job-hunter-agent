@@ -30,7 +30,7 @@ class IndeedScraper(BaseScraper):
             cards = page.query_selector_all(".result") or page.query_selector_all("[class*='job_seen_beacon']") or page.query_selector_all("td.resultContent")
             logger.info(f"Indeed found {len(cards)} cards")
             
-            for card in cards[:10]:
+            for card in cards:
                 try:
                     raw_data = self.extract(card)
                     if raw_data and raw_data.get("title") and raw_data.get("url"):

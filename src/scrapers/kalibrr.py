@@ -31,7 +31,7 @@ class KalibrrScraper(BaseScraper):
             cards = page.query_selector_all(".k-border-b") or page.query_selector_all("[itemscope][itemtype='http://schema.org/JobPosting']") or page.query_selector_all("a[href*='/jobs/']")
             logger.info(f"Kalibrr found {len(cards)} cards")
             
-            for card in cards[:10]:
+            for card in cards:
                 try:
                     raw_data = self.extract(card)
                     if raw_data and raw_data.get("title") and raw_data.get("url"):

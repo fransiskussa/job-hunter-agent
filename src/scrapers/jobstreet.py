@@ -31,7 +31,7 @@ class JobStreetScraper(BaseScraper):
             cards = page.query_selector_all("article") or page.query_selector_all("[data-testid='job-card']")
             logger.info(f"JobStreet found {len(cards)} cards")
             
-            for card in cards[:20]:
+            for card in cards:
                 try:
                     raw_data = self.extract(card)
                     if raw_data and raw_data.get("title") and raw_data.get("url"):

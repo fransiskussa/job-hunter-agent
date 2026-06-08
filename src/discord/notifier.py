@@ -10,39 +10,57 @@ class DiscordNotifier:
         self.webhook_url = settings.DISCORD_WEBHOOK_URL
 
     def send_report(self, matched_jobs: list[dict], matched_posts: list[dict]) -> bool:
-        """Group matched jobs by source and send reports separated by platform."""
+        """Group matched jobs by source and send reports separated by platform.
         
-        # 1. Filter and sort by platform
+        Targets:
+        - LinkedIn Jobs: 20 jobs
+        - LinkedIn Posts: 20 posts
+        - JobStreet: 30 jobs
+        - Glints: 20 jobs
+        - Kalibrr: 10 jobs
+        """
+        # 1. Filter by platform
         linkedin_jobs = [j for j in matched_jobs if j.get("source") == "LinkedIn Jobs"]
         jobstreet_jobs = [j for j in matched_jobs if j.get("source") == "JobStreet"]
         glints_jobs = [j for j in matched_jobs if j.get("source") == "Glints"]
         kalibrr_jobs = [j for j in matched_jobs if j.get("source") == "Kalibrr"]
         
-        # Sort each list descending by score
+        # Sort each platform by score DESC
         linkedin_jobs.sort(key=lambda x: x.get("score", 0), reverse=True)
         jobstreet_jobs.sort(key=lambda x: x.get("score", 0), reverse=True)
         glints_jobs.sort(key=lambda x: x.get("score", 0), reverse=True)
         kalibrr_jobs.sort(key=lambda x: x.get("score", 0), reverse=True)
         matched_posts.sort(key=lambda x: x.get("score", 0), reverse=True)
         
-        # 2. Send each platform's report
         success = True
         
+        # 2. Send LinkedIn Jobs (Top 20 -> 2 messages)
         if linkedin_jobs:
-            success &= self._send_platform_report("🚀 Top 10 LinkedIn Jobs", linkedin_jobs[:10])
+            success &= self._send_platform_report("🚀 Top 20 LinkedIn Jobs (Part 1)", linkedin_jobs[:10])
+            if len(linkedin_jobs) > 10:
+                success &= self._send_platform_report("🚀 Top 20 LinkedIn Jobs (Part 2)", linkedin_jobs[10:20])
         
+        # 3. Send LinkedIn Hiring Posts (Top 20 -> 2 messages)
         if matched_posts:
-            success &= self._send_posts_report("📢 Top 10 LinkedIn Hiring Posts", matched_posts[:10])
+            success &= self._send_posts_report("📢 Top 20 LinkedIn Hiring Posts (Part 1)", matched_posts[:10])
+            if len(matched_posts) > 10:
+                success &= self._send_posts_report("📢 Top 20 LinkedIn Hiring Posts (Part 2)", matched_posts[10:20])
             
+        # 4. Send JobStreet Jobs (Top 30 -> 3 messages)
         if jobstreet_jobs:
-            # JobStreet request is 20 jobs. Split into 2 messages of 10 embeds each due to Discord limit.
-            success &= self._send_platform_report("💼 Top 10 JobStreet Jobs (Part 1)", jobstreet_jobs[:10])
+            success &= self._send_platform_report("💼 Top 30 JobStreet Jobs (Part 1)", jobstreet_jobs[:10])
             if len(jobstreet_jobs) > 10:
-                success &= self._send_platform_report("💼 Top 20 JobStreet Jobs (Part 2)", jobstreet_jobs[10:20])
+                success &= self._send_platform_report("💼 Top 30 JobStreet Jobs (Part 2)", jobstreet_jobs[10:20])
+            if len(jobstreet_jobs) > 20:
+                success &= self._send_platform_report("💼 Top 30 JobStreet Jobs (Part 3)", jobstreet_jobs[20:30])
                 
+        # 5. Send Glints Jobs (Top 20 -> 2 messages)
         if glints_jobs:
-            success &= self._send_platform_report("🎨 Top 10 Glints Jobs", glints_jobs[:10])
+            success &= self._send_platform_report("🎨 Top 20 Glints Jobs (Part 1)", glints_jobs[:10])
+            if len(glints_jobs) > 10:
+                success &= self._send_platform_report("🎨 Top 20 Glints Jobs (Part 2)", glints_jobs[10:20])
             
+        # 6. Send Kalibrr Jobs (Top 10 -> 1 message)
         if kalibrr_jobs:
             success &= self._send_platform_report("⚡ Top 10 Kalibrr Jobs", kalibrr_jobs[:10])
             
