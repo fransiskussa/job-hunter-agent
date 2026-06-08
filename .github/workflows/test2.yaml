@@ -2,7 +2,7 @@ name: Echo time2
 on: 
   schedule: 
     - cron: "59 20 * * *"  # Berjalan setiap 10 menit
-      timezone: "Indonesia/Jakarta"
+      timezone: "Asia/Jakarta"
   workflow_dispatch:        # Tombol manual tetap ada untuk testing langsung
 
 jobs:
