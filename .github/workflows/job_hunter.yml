@@ -3,7 +3,7 @@ name: Job Hunter Agent
 on:
   schedule:
     # 18:02 WIB (11:02 UTC) untuk testing
-    - cron: '0 12 * * *'
+    - cron: '30 12 * * *'
   workflow_dispatch: # Memungkinkan trigger manual
 
 jobs:

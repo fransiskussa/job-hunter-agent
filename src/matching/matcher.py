@@ -10,21 +10,59 @@ class JobMatcher:
     def calculate_score(self, job_or_post: dict, is_post: bool = False) -> tuple[int, list[str]]:
         """Calculate matching score between 0 and 100 and return matched skills.
         
-        Attempts to use Gemini AI matching if GEMINI_API_KEY is set.
-        Otherwise falls back to the Regex keyword matcher.
+        Uses a hybrid approach:
+        1. Fast local Regex pre-filtering. If absolutely no skills or roles match, returns 0.
+        2. If key is configured, uses Gemini AI to verify relevance and calculate precision score.
+        3. Falls back to full Regex keyword scoring if Gemini is disabled or fails.
         """
         title = job_or_post.get("title", "").strip() if not is_post else "LinkedIn Post"
         description = job_or_post.get("description", "").strip() if not is_post else job_or_post.get("content", "").strip()
         location = job_or_post.get("location", "").strip() if not is_post else "Indonesia (Remote / Post)"
 
+        title_lower = title.lower()
+        description_lower = description.lower()
+        location_lower = location.lower()
+
+        # === 1. PRE-FILTERING (Lokal & Cepat) ===
+        # Pencocokan Skill dasar
+        regex_matched_skills = []
+        for skill in self.user_skills:
+            escaped_skill = re.escape(skill)
+            if any(char in skill for char in ["+", "#", ".", "/"]):
+                pattern = rf"(?:^|[\s/,\-\(\)])({escaped_skill})(?:$|[\s/,\-\(\)])"
+            else:
+                pattern = rf"\b{escaped_skill}\b"
+                
+            if re.search(pattern, title_lower) or re.search(pattern, description_lower):
+                orig_skill = next((s for s in self.user_profile.get("skills", []) if s.lower() == skill), skill)
+                regex_matched_skills.append(orig_skill)
+
+        # Pencocokan Role dasar
+        has_role_match = False
+        text_to_check = title_lower if not is_post else description_lower
+        for role in self.preferred_roles:
+            if role in text_to_check:
+                has_role_match = True
+                break
+
+        # Jika TIDAK ADA skill DAN TIDAK ADA preferred role yang cocok sama sekali, langsung kembalikan 0.
+        # Ini akan memangkas pemanggilan API Gemini secara drastis!
+        if not regex_matched_skills and not has_role_match:
+            return 0, []
+
+        # === 2. GEMINI AI MATCHING ===
         from src.config.settings import settings
         if settings.GEMINI_API_KEY:
-            try:
-                import requests
-                import json
-
-                url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={settings.GEMINI_API_KEY}"
-                prompt = f"""
+            import requests
+            import json
+            import time
+            import logging
+            
+            # Rate limit protection: sleep for 2 seconds before each API call
+            time.sleep(2.0)
+            
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={settings.GEMINI_API_KEY}"
+            prompt = f"""
 You are an expert HR recruiter assistant. Analyze the following job description or social media hiring post against the candidate's profile to check if it's relevant, is located in Indonesia or Remote, and calculate a match score.
 
 Candidate Profile:
@@ -43,73 +81,62 @@ Respond with a JSON object containing exactly these fields:
 - "matched_skills" (array of strings): Which of the candidate's skills are matched in the job requirements. Use strings matching the case of the candidate's profile skills.
 - "reason" (string): A brief explanation (maximum 1 sentence) of the score or mismatch.
 """
-                payload = {
-                    "contents": [{"parts": [{"text": prompt}]}],
-                    "generationConfig": {
-                        "responseMimeType": "application/json"
-                    }
+            payload = {
+                "contents": [{"parts": [{"text": prompt}]}],
+                "generationConfig": {
+                    "responseMimeType": "application/json"
                 }
-                res = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=10)
-                if res.status_code == 200:
-                    data = res.json()
-                    text_response = data["candidates"][0]["content"]["parts"][0]["text"]
-                    result = json.loads(text_response)
-                    
-                    is_relevant = result.get("is_relevant", True)
-                    if not is_relevant:
-                        return 0, []
-                    
-                    score = int(result.get("score", 0))
-                    matched_skills = result.get("matched_skills", [])
-                    return min(100, max(0, score)), matched_skills
-            except Exception as e:
-                # Log warning and fallback silently to regex
-                import logging
-                logging.getLogger(__name__).warning(f"Gemini API matching failed: {e}. Falling back to Regex matcher.")
+            }
+            
+            # Retry mechanism (up to 3 attempts)
+            for attempt in range(1, 4):
+                try:
+                    res = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=20)
+                    if res.status_code == 200:
+                        data = res.json()
+                        text_response = data["candidates"][0]["content"]["parts"][0]["text"]
+                        result = json.loads(text_response)
+                        
+                        is_relevant = result.get("is_relevant", True)
+                        if not is_relevant:
+                            return 0, []
+                        
+                        score = int(result.get("score", 0))
+                        matched_skills = result.get("matched_skills", [])
+                        return min(100, max(0, score)), matched_skills
+                    elif res.status_code == 429:
+                        logging.getLogger(__name__).warning(f"Gemini API rate limit hit (429). Retrying attempt {attempt}/3...")
+                        time.sleep(5.0 * attempt)
+                    else:
+                        logging.getLogger(__name__).warning(f"Gemini API returned status {res.status_code}: {res.text}. Attempt {attempt}/3.")
+                        time.sleep(2.0)
+                except Exception as e:
+                    logging.getLogger(__name__).warning(f"Gemini API attempt {attempt}/3 failed: {e}")
+                    if attempt < 3:
+                        time.sleep(3.0 * attempt)
+            
+            logging.getLogger(__name__).warning("All 3 Gemini API attempts failed. Falling back to Regex matcher.")
 
-        # Fallback to Regex keyword matching
-        title_lower = title.lower()
-        description_lower = description.lower()
-        location_lower = location.lower()
-
-        # 1. Skills Match (50%)
-        matched_skills = []
-        for skill in self.user_skills:
-            escaped_skill = re.escape(skill)
-            if any(char in skill for char in ["+", "#", ".", "/"]):
-                pattern = rf"(?:^|[\s/,\-\(\)])({escaped_skill})(?:$|[\s/,\-\(\)])"
-            else:
-                pattern = rf"\b{escaped_skill}\b"
-                
-            if re.search(pattern, title_lower) or re.search(pattern, description_lower):
-                orig_skill = next((s for s in self.user_profile.get("skills", []) if s.lower() == skill), skill)
-                matched_skills.append(orig_skill)
-
-        skills_ratio = len(matched_skills) / max(1, len(self.user_skills))
+        # === 3. FALLBACK REGEX MATCHING (Bila Gemini nonaktif/gagal) ===
+        skills_ratio = len(regex_matched_skills) / max(1, len(self.user_skills))
         skills_score = int(skills_ratio * 50)
 
-        # 2. Role Match (20%)
-        role_score = 0
-        text_to_check = title_lower if not is_post else description_lower
-        for role in self.preferred_roles:
-            if role in text_to_check:
-                role_score = 20
-                break
+        # Role Match (20%)
+        role_score = 20 if has_role_match else 0
 
-        # 3. Location Match (10%)
+        # Location Match (10%)
         location_score = 0
         for loc in self.preferred_locations:
             if loc in location_lower or (loc == "remote" and ("remote" in title_lower or "remote" in description_lower)):
                 location_score = 10
                 break
 
-        # 4. Seniority Match (10%)
+        # Seniority Match (10%)
         seniority_keywords = ["senior", "lead", "principal", "staff", "manager", "sr"]
         junior_keywords = ["junior", "intern", "associate", "fresh", "entry", "jr"]
         
         job_is_senior = any(w in title_lower for w in seniority_keywords)
         job_is_junior = any(w in title_lower for w in junior_keywords)
-        
         pref_is_senior = any(any(w in r for w in seniority_keywords) for r in self.preferred_roles)
         
         seniority_score = 5
@@ -120,7 +147,7 @@ Respond with a JSON object containing exactly these fields:
         elif not pref_is_senior and job_is_junior:
             seniority_score = 10
 
-        # 5. Keyword Relevance (10%)
+        # Keyword Relevance (10%)
         relevance_keywords = ["remote", "immediately", "urgently", "bonus", "fulltime", "wfh", "hybrid"]
         relevance_matches = 0
         for kw in relevance_keywords:
@@ -142,4 +169,4 @@ Respond with a JSON object containing exactly these fields:
             if boost_applied:
                 total_score = min(100, total_score)
 
-        return min(100, total_score), matched_skills
+        return min(100, total_score), regex_matched_skills
