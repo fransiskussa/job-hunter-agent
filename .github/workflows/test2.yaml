@@ -1,7 +1,7 @@
 name: Echo time2
 on: 
   schedule: 
-    - cron: "*/10 * * * *"  # Berjalan setiap 10 menit
+    - cron: "53 13 * * *"  # Berjalan setiap 10 menit
   workflow_dispatch:        # Tombol manual tetap ada untuk testing langsung
 
 jobs:
