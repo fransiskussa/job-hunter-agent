@@ -1,49 +1,92 @@
 import logging
 import urllib.parse
-from playwright.sync_api import Playwright
 from src.scrapers.base_scraper import BaseScraper
 
 logger = logging.getLogger(__name__)
 
+
 class KalibrrScraper(BaseScraper):
+    """
+    Kalibrr Indonesia Scraper — optimized with auto-scroll, updated selectors,
+    and retry mechanism.
+    """
+
     def search(self, query: str, location: str) -> list[dict]:
         logger.info(f"Searching Kalibrr jobs for '{query}' in '{location}'")
         raw_jobs = []
-        
-        browser = self.playwright.chromium.launch(
-            headless=True,
-            args=["--disable-blink-features=AutomationControlled"]
-        )
-        context = browser.new_context(
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            viewport={"width": 1280, "height": 800}
-        )
+        seen_urls = set()
+
+        context = self._new_context()
         page = context.new_page()
-        page.set_default_timeout(25000)
-        
+        page.set_default_timeout(30000)
+
         try:
             encoded_query = urllib.parse.quote(query)
             url = f"https://www.kalibrr.com/job-board/te/{encoded_query}?country=Indonesia&sort=freshness"
-            
-            page.goto(url, wait_until="domcontentloaded", timeout=25000)
-            page.wait_for_timeout(6000)
-            
-            cards = page.query_selector_all(".k-border-b") or page.query_selector_all("[itemscope][itemtype='http://schema.org/JobPosting']") or page.query_selector_all("a[href*='/jobs/']")
-            logger.info(f"Kalibrr found {len(cards)} cards")
-            
-            for card in cards[:10]:
+
+            page.goto(url, wait_until="domcontentloaded", timeout=30000)
+            page.wait_for_timeout(4000)
+
+            # Auto-scroll to load more cards
+            self.auto_scroll(page, scroll_count=4, delay_ms=1500)
+
+            # Multiple selector strategies
+            cards = (
+                page.query_selector_all(".k-border-b")
+                or page.query_selector_all("[itemscope][itemtype='http://schema.org/JobPosting']")
+                or page.query_selector_all("[class*='JobCard']")
+                or page.query_selector_all("[class*='job-card']")
+                or page.query_selector_all("a[href*='/c/'][href*='/jobs/']")
+            )
+            logger.info(f"Kalibrr found {len(cards)} cards after scroll")
+
+            for card in cards:
                 try:
                     raw_data = self.extract(card)
                     if raw_data and raw_data.get("title") and raw_data.get("url"):
-                        raw_jobs.append(raw_data)
+                        url_clean = raw_data["url"]
+                        if url_clean not in seen_urls:
+                            seen_urls.add(url_clean)
+                            raw_jobs.append(raw_data)
                 except Exception as e:
                     logger.debug(f"Kalibrr error extracting card: {e}")
-                    
+
+            logger.info(f"Kalibrr extracted {len(raw_jobs)} unique jobs")
+
+            # Retry with alternative search if no results
+            if not raw_jobs:
+                self.random_delay(2000, 4000)
+                logger.info("Kalibrr retry with alternative URL...")
+
+                # Try direct search endpoint
+                alt_url = f"https://www.kalibrr.com/job-board/te/{encoded_query}?country=Indonesia"
+                page.goto(alt_url, wait_until="domcontentloaded", timeout=30000)
+                page.wait_for_timeout(4000)
+                self.auto_scroll(page, scroll_count=3, delay_ms=1500)
+
+                cards = (
+                    page.query_selector_all(".k-border-b")
+                    or page.query_selector_all("a[href*='/jobs/']")
+                )
+                logger.info(f"Kalibrr retry found {len(cards)} cards")
+
+                for card in cards:
+                    try:
+                        raw_data = self.extract(card)
+                        if raw_data and raw_data.get("title") and raw_data.get("url"):
+                            url_clean = raw_data["url"]
+                            if url_clean not in seen_urls:
+                                seen_urls.add(url_clean)
+                                raw_jobs.append(raw_data)
+                    except Exception as e:
+                        logger.debug(f"Kalibrr retry error: {e}")
+
         except Exception as e:
             logger.error(f"Error scraping Kalibrr: {e}")
         finally:
-            browser.close()
-            
+            context.close()
+
+        logger.info(f"Kalibrr total: {len(raw_jobs)} jobs collected")
         return raw_jobs
 
     def extract(self, card) -> dict:
@@ -55,19 +98,27 @@ class KalibrrScraper(BaseScraper):
 
         links = card.query_selector_all("a")
 
-        # 1. Cari tautan pekerjaan pertama yang tidak mengarah ke organisasi
+        # Check if card itself is an <a> tag
+        tag_name = ""
+        try:
+            tag_name = card.evaluate("el => el.tagName").lower()
+        except Exception:
+            pass
+        if tag_name == "a":
+            links = [card] + links
+
+        # 1. Cari tautan pekerjaan
         for link in links:
             href = link.get_attribute("href") or ""
             text = link.inner_text().strip()
-            
+
             if href and len(text) > 2:
-                # Lewati profil organisasi
+                # Skip company-only links (except if it contains /jobs/)
                 if any(x in href.lower() for x in ["/c/", "/companies/", "company"]):
-                    # Kadang link job Kalibrr berisi /c/company/jobs/123, tapi pastikan ada /jobs/
                     if "/jobs/" not in href.lower():
                         continue
-                
-                title = text.split("\n")[0]
+
+                title = text.split("\n")[0].strip()
                 if href.startswith("http"):
                     url = href
                 else:
@@ -80,41 +131,66 @@ class KalibrrScraper(BaseScraper):
             href = link.get_attribute("href") or ""
             text = link.inner_text().strip()
             if "/c/" in href.lower() and "/jobs/" not in href.lower() and len(text) > 1:
-                company = text
+                company = text.split("\n")[0].strip()
                 break
 
-        # Fallback jika title kosong
+        # Fallback: title
         if not title:
-            title_el = card.query_selector("[itemprop='title']") or card.query_selector("h2 a") or card.query_selector("a")
+            title_el = (
+                card.query_selector("[itemprop='title']")
+                or card.query_selector("[class*='JobTitle']")
+                or card.query_selector("[class*='job-title']")
+                or card.query_selector("h2 a")
+                or card.query_selector("h3 a")
+                or card.query_selector("a")
+            )
             title = title_el.inner_text().strip() if title_el else ""
 
-        # Fallback jika company kosong
+        # Fallback: company
         if not company:
-            company_el = card.query_selector("[itemprop='hiringOrganization']") or card.query_selector(".k-text-subdued a")
+            company_el = (
+                card.query_selector("[itemprop='hiringOrganization']")
+                or card.query_selector("[class*='CompanyName']")
+                or card.query_selector(".k-text-subdued a")
+            )
             company = company_el.inner_text().strip() if company_el else ""
 
-        location_el = card.query_selector("[itemprop='jobLocation']") or card.query_selector(".k-text-subdued")
+        # Location
+        location_el = (
+            card.query_selector("[itemprop='jobLocation']")
+            or card.query_selector("[class*='Location']")
+            or card.query_selector(".k-text-subdued")
+        )
         location = location_el.inner_text().strip() if location_el else "Indonesia"
 
-        description = f"Job opportunity for a {title} at {company} in {location}."
+        # Description
+        desc_el = (
+            card.query_selector("[class*='Description']")
+            or card.query_selector("[class*='teaser']")
+            or card.query_selector("p")
+        )
+        description = desc_el.inner_text().strip() if desc_el else ""
+        
+        if not description:
+            description = f"Job opportunity for a {title} at {company} in {location}."
 
         return {
             "title": title,
             "company": company,
             "location": location,
             "description": description,
-            "url": url
+            "url": url,
         }
 
     def normalize(self, raw_data: dict) -> dict:
         if not raw_data.get("title") or not raw_data.get("url"):
             return {}
-            
+
         return {
             "source": "Kalibrr",
             "title": raw_data["title"],
             "company": raw_data.get("company", "Unknown"),
-            "location": raw_data.get("location", "Unknown"),
+            "location": raw_data.get("location", "Indonesia"),
             "description": raw_data.get("description", ""),
-            "url": raw_data["url"]
+            "url": raw_data["url"],
         }

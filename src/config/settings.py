@@ -8,6 +8,7 @@ class Settings:
     SUPABASE_URL: str = os.getenv("SUPABASE_URL", "")
     SUPABASE_KEY: str = os.getenv("SUPABASE_KEY", "")
     DISCORD_WEBHOOK_URL: str = os.getenv("DISCORD_WEBHOOK_URL", "")
+    GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
 
     @classmethod
     def validate(cls):
