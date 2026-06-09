@@ -24,6 +24,8 @@ class LinkedInScraper(BaseScraper):
             # Check if we have cookies in database
             cookies = self.repository.get_platform_cookies("linkedin")
             if not cookies:
+                cookies = self.repository.get_platform_cookies("linkedin jobs")
+            if not cookies:
                 logger.error("LinkedIn requires login cookies. No cookies found in database.")
                 raise CookieExpiredException("No cookies found for LinkedIn.")
                 

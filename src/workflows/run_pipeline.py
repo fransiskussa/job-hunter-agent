@@ -5,6 +5,8 @@ from playwright.sync_api import sync_playwright
 from src.database.supabase_client import get_supabase_client
 from src.database.repository import JobRepository
 from src.scrapers.linkedin import LinkedInScraper
+from src.scrapers.linkedin_posts import LinkedInPostsScraper
+from src.scrapers.indeed import IndeedScraper
 from src.scrapers.jobstreet import JobStreetScraper
 from src.scrapers.glints import GlintsScraper
 from src.scrapers.kalibrr import KalibrrScraper
@@ -36,8 +38,8 @@ def scrape_platform_worker(platform_name, scraper_class, queries, primary_locati
                     normalized = scraper.normalize(raw)
                     if normalized:
                         score, matched_skills, breakdown = matcher.calculate_score(normalized, is_post=False)
-                        if breakdown.get("role", 0) > 0:
-                            # Hanya tambahkan job yang sesuai role
+                        # Longgarkan: masuk jika Role sesuai ATAU ada Skill yang cocok
+                        if breakdown.get("role", 0) > 0 or breakdown.get("skills", 0) > 0:
                             platform_jobs.append(normalized)
             scraper.close_browser()
             
@@ -75,6 +77,47 @@ def scrape_platform_worker(platform_name, scraper_class, queries, primary_locati
                 
         return platform_name, [], elapsed, "FAILED"
 
+
+def scrape_linkedin_posts_worker(queries, primary_location, repo, notifier, matcher):
+    logger.info("🧵 Thread started for scraper: LinkedIn Posts")
+    platform_posts = []
+    scraper_start = time.time()
+    repo.update_source_status("LinkedIn Posts", "RUNNING")
+    
+    try:
+        from playwright.sync_api import sync_playwright
+        with sync_playwright() as p:
+            posts_scraper = LinkedInPostsScraper(p, repo)
+            for query in queries:
+                if len(platform_posts) >= 50:
+                    break
+                raw_posts = posts_scraper.search(query, primary_location)
+                for raw in raw_posts:
+                    if len(platform_posts) >= 50:
+                        break
+                    normalized = posts_scraper.normalize(raw)
+                    if normalized:
+                        score, matched_skills, breakdown = matcher.calculate_score(normalized, is_post=True)
+                        if breakdown.get("role", 0) > 0 or breakdown.get("skills", 0) > 0:
+                            platform_posts.append(normalized)
+            posts_scraper.close_browser()
+            
+        elapsed = round(time.time() - scraper_start, 1)
+        logger.info(f"✅ LinkedIn Posts: {len(platform_posts)} posts in {elapsed}s")
+        repo.update_source_status("LinkedIn Posts", "SUCCESS")
+        return "LinkedIn Posts", platform_posts, elapsed, "SUCCESS"
+    except CookieExpiredException as e:
+        elapsed = round(time.time() - scraper_start, 1)
+        logger.error(f"❌ LinkedIn Posts: Cookie expired/Login required! — {e}")
+        repo.update_source_status("LinkedIn Posts", "FAILED")
+        return "LinkedIn Posts", [], elapsed, "COOKIE_EXPIRED"
+    except Exception as e:
+        elapsed = round(time.time() - scraper_start, 1)
+        logger.error(f"❌ LinkedIn Posts: FAILED in {elapsed}s — {e}")
+        repo.update_source_status("LinkedIn Posts", "FAILED")
+        return "LinkedIn Posts", [], elapsed, "FAILED"
+
+
 def run_pipeline():
     pipeline_start = time.time()
     logger.info("=" * 60)
@@ -97,11 +140,13 @@ def run_pipeline():
     primary_location = locations[0] if locations else "Indonesia"
 
     all_normalized_jobs = []
+    all_normalized_posts = []
     platform_stats = {}  # Track stats per platform
 
     # Define job scraper classes
     job_scrapers = {
         "LinkedIn Jobs": LinkedInScraper,
+        "Indeed": IndeedScraper,
         "JobStreet": JobStreetScraper,
         "Glints": GlintsScraper,
         "Kalibrr": KalibrrScraper,
@@ -129,18 +174,37 @@ def run_pipeline():
                 )
             )
             
+        # Submit LinkedIn posts scraper
+        futures.append(
+            executor.submit(
+                scrape_linkedin_posts_worker,
+                queries,
+                primary_location,
+                repo,
+                notifier,
+                matcher
+            )
+        )
+            
         # Gather results as they complete
         for future in futures:
             try:
                 name, items, elapsed, status = future.result()
                 platform_stats[name] = {"count": len(items), "time": elapsed, "status": status}
-                all_normalized_jobs.extend(items)
+                if name == "LinkedIn Posts":
+                    all_normalized_posts.extend(items)
+                else:
+                    all_normalized_jobs.extend(items)
             except Exception as exc:
                 logger.error(f"A scraper worker generated an unhandled exception: {exc}")
 
     # 5. Save Jobs to Database
     inserted_jobs = repo.save_jobs(all_normalized_jobs)
     logger.info(f"💾 Saved {len(inserted_jobs)} new jobs to database (from {len(all_normalized_jobs)} pre-filtered).")
+
+    # Save LinkedIn Posts
+    inserted_posts = repo.save_linkedin_posts(all_normalized_posts)
+    logger.info(f"💾 Saved {len(inserted_posts)} new LinkedIn posts to database.")
 
     # 6. Process Jobs Matches
     matches_to_save = []
@@ -171,12 +235,27 @@ def run_pipeline():
     # 7. Sort matches
     matched_jobs_report.sort(key=lambda x: x["score"], reverse=True)
 
+    matched_posts_report = []
+    for post in inserted_posts:
+        score, matched_skills, breakdown = matcher.calculate_score(post, is_post=True)
+        matched_posts_report.append({
+            "author_name": post["author_name"],
+            "author_profile_url": post["author_profile_url"],
+            "company": post["company"],
+            "content": post["content"],
+            "score": score,
+            "matched_skills": matched_skills,
+            "post_url": post["post_url"],
+        })
+
+    matched_posts_report.sort(key=lambda x: x["score"], reverse=True)
+
     # 8. Export to Google Sheets
     sheets_exporter = GoogleSheetsExporter()
     sheets_exporter.export_jobs(matched_jobs_report)
 
     # 9. Send reports to Discord
-    notifier.send_report(matched_jobs_report, [])
+    notifier.send_report(matched_jobs_report, matched_posts_report)
 
     # 9. Print Summary
     total_elapsed = round(time.time() - pipeline_start, 1)

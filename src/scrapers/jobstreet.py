@@ -26,7 +26,7 @@ class JobStreetScraper(BaseScraper):
             for page_num in range(1, self.MAX_PAGES + 1):
                 encoded_query = urllib.parse.quote(query)
                 # JobStreet/SEEK Indonesia URL with pagination
-                url = f"https://id.jobstreet.com/id/jobs?keywords={encoded_query}&where=Indonesia&daterange=3&page={page_num}"
+                url = f"https://id.jobstreet.com/id/jobs?keywords={encoded_query}&where=Indonesia&daterange=30&page={page_num}"
 
                 logger.info(f"JobStreet page {page_num}: {url}")
                 

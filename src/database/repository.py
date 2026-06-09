@@ -99,7 +99,15 @@ class JobRepository:
                 .eq("platform_name", platform_name.lower()) \
                 .execute()
             if response.data:
-                return response.data[0].get("cookies", [])
+                cookies_data = response.data[0].get("cookies", [])
+                if isinstance(cookies_data, str):
+                    import json
+                    try:
+                        cookies_data = json.loads(cookies_data)
+                    except json.JSONDecodeError:
+                        logger.error(f"Failed to parse cookies string for {platform_name}")
+                        return []
+                return cookies_data
         except Exception as e:
             logger.error(f"Error fetching cookies for {platform_name} from DB: {e}")
         return []
