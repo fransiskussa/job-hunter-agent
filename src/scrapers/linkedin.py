@@ -14,15 +14,25 @@ class LinkedInScraper(BaseScraper):
     """
 
     def search(self, query: str, location: str) -> list[dict]:
-        logger.info(f"Searching LinkedIn jobs for '{query}' in '{location}' via Google")
-        raw_jobs = []
-
         context = self._new_context("linkedin")
         page = context.new_page()
-        page.set_default_timeout(25000)
+        page.set_default_timeout(30000)
 
+        raw_jobs = []
         try:
-            # Search Google for LinkedIn job listings in Indonesia
+            # Check if we have cookies in database
+            cookies = self.repository.get_platform_cookies("linkedin")
+            if cookies:
+                try:
+                    raw_jobs = self._search_direct(page, query, location)
+                    if raw_jobs:
+                        logger.info(f"✅ Successfully collected {len(raw_jobs)} jobs directly from LinkedIn")
+                        return raw_jobs
+                except Exception as direct_err:
+                    logger.warning(f"Direct LinkedIn scraping failed: {direct_err}. Falling back to Google Search Proxy.")
+
+            # --- FALLBACK: GOOGLE SEARCH PROXY ---
+            logger.info(f"Searching LinkedIn jobs for '{query}' in '{location}' via Google Search Proxy")
             results = google_search_jobs(
                 page=page,
                 site_domain="linkedin.com/jobs/view",
@@ -67,10 +77,70 @@ class LinkedInScraper(BaseScraper):
         except CookieExpiredException:
             raise
         except Exception as e:
-            logger.error(f"Error scraping LinkedIn Jobs via Google: {e}")
+            logger.error(f"Error scraping LinkedIn Jobs: {e}")
         finally:
             context.close()
 
+        return raw_jobs
+
+    def _search_direct(self, page: Page, query: str, location: str) -> list[dict]:
+        """Scrape LinkedIn directly when logged in."""
+        logger.info(f"Scraping LinkedIn Jobs directly for '{query}' in '{location}' (logged-in)")
+        import urllib.parse
+        encoded_query = urllib.parse.quote(query)
+        encoded_loc = urllib.parse.quote(location)
+        url = f"https://www.linkedin.com/jobs/search/?keywords={encoded_query}&location={encoded_loc}"
+        
+        page.goto(url, wait_until="domcontentloaded", timeout=30000)
+        self.check_session_validity(page, "LinkedIn Jobs")
+        page.wait_for_timeout(5000)
+        
+        # Auto-scroll to load more jobs in the sidebar
+        self.auto_scroll(page, scroll_count=3, delay_ms=1000)
+        
+        cards = (
+            page.query_selector_all("li.jobs-search-results__list-item")
+            or page.query_selector_all("[data-occludable-job-id]")
+            or page.query_selector_all(".job-card-container")
+            or page.query_selector_all(".jobs-search-two-pane__job-card-container")
+        )
+        
+        logger.info(f"Direct LinkedIn found {len(cards)} job cards")
+        raw_jobs = []
+        for card in cards:
+            try:
+                # Extract details
+                title_el = card.query_selector("a.job-card-list__title, .job-card-list__title, a.job-card-container__link, [class*='job-card-list__title']")
+                title = title_el.inner_text().strip() if title_el else ""
+                
+                href = title_el.get_attribute("href") if title_el else ""
+                url_clean = ""
+                if href:
+                    if href.startswith("http"):
+                        url_clean = href.split("?")[0]
+                    else:
+                        url_clean = f"https://www.linkedin.com{href}".split("?")[0]
+                
+                company_el = card.query_selector(".job-card-container__company-name, .job-card-list__company-name, [class*='company-name']")
+                company = company_el.inner_text().strip() if company_el else ""
+                
+                loc_el = card.query_selector(".job-card-container__metadata-item, .job-card-list__metadata-item, [class*='metadata-item']")
+                loc = loc_el.inner_text().strip() if loc_el else "Indonesia"
+                
+                desc_el = card.query_selector(".job-card-list__description-snippet, [class*='description-snippet']")
+                desc = desc_el.inner_text().strip() if desc_el else ""
+                
+                if title and url_clean:
+                    raw_jobs.append({
+                        "title": title,
+                        "company": company,
+                        "location": loc,
+                        "description": desc or f"Job listing for {title} at {company}",
+                        "url": url_clean,
+                    })
+            except Exception as card_err:
+                logger.debug(f"Error parsing direct LinkedIn job card: {card_err}")
+                
         return raw_jobs
 
     def extract(self, google_result: dict) -> dict:

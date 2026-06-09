@@ -30,9 +30,21 @@ class LinkedInPostsScraper(BaseScraper):
 
         context = self._new_context("linkedin")
         page = context.new_page()
-        page.set_default_timeout(20000)
+        page.set_default_timeout(30000)
 
         try:
+            # Check if we have cookies in database to run direct search
+            cookies = self.repository.get_platform_cookies("linkedin")
+            if cookies:
+                try:
+                    raw_posts = self._search_direct(page, query, location)
+                    if raw_posts:
+                        logger.info(f"✅ Successfully collected {len(raw_posts)} posts directly from LinkedIn feed")
+                        return raw_posts
+                except Exception as direct_err:
+                    logger.warning(f"Direct LinkedIn Posts scraping failed: {direct_err}. Falling back to Google Search Proxy.")
+
+            # --- FALLBACK: GOOGLE SEARCH PROXY ---
             for template_idx, template in enumerate(self.SEARCH_TEMPLATES):
                 if len(raw_posts) >= 15:
                     break
@@ -124,6 +136,81 @@ class LinkedInPostsScraper(BaseScraper):
             context.close()
 
         logger.info(f"LinkedIn Posts found {len(raw_posts)} unique Indonesia-relevant posts")
+        return raw_posts
+
+    def _search_direct(self, page: Page, query: str, location: str) -> list[dict]:
+        """Scrape LinkedIn hiring posts directly when logged in."""
+        logger.info(f"Scraping LinkedIn Posts directly for '{query}' (logged-in)")
+        import urllib.parse
+        search_query = f'"{query}" (hiring OR lowongan OR open position) Indonesia'
+        encoded_query = urllib.parse.quote(search_query)
+        url = f"https://www.linkedin.com/search/results/content/?keywords={encoded_query}&origin=SWITCH_SEARCH_VERTICAL"
+        
+        page.goto(url, wait_until="domcontentloaded", timeout=30000)
+        self.check_session_validity(page, "LinkedIn Posts")
+        page.wait_for_timeout(5000)
+        
+        # Scroll to load dynamic posts
+        self.auto_scroll(page, scroll_count=3, delay_ms=1500)
+        
+        post_blocks = (
+            page.query_selector_all("div.search-content__feed-update")
+            or page.query_selector_all("div.feed-shared-update-v2")
+            or page.query_selector_all("[data-urn*='urn:li:activity:']")
+        )
+        
+        logger.info(f"Direct LinkedIn Posts found {len(post_blocks)} post blocks")
+        raw_posts = []
+        for block in post_blocks:
+            try:
+                # Content
+                content_el = (
+                    block.query_selector(".feed-shared-update-v2__description")
+                    or block.query_selector(".feed-shared-text")
+                    or block.query_selector(".update-components-text")
+                )
+                content = content_el.inner_text().strip() if content_el else ""
+                
+                # Try to find link to the post
+                link_el = (
+                    block.query_selector("a[href*='/feed/update/urn:li:activity:']")
+                    or block.query_selector("a.update-components-actor__image")
+                )
+                href = link_el.get_attribute("href") if link_el else ""
+                post_url = ""
+                if href:
+                    if href.startswith("http"):
+                        post_url = href.split("?")[0]
+                    else:
+                        post_url = f"https://www.linkedin.com{href}".split("?")[0]
+                
+                if not post_url:
+                    # Fallback default url if not found, since a URL is required
+                    urn = block.get_attribute("data-urn") or ""
+                    if "urn:li:activity:" in urn:
+                        activity_id = urn.split("urn:li:activity:")[1]
+                        post_url = f"https://www.linkedin.com/feed/update/urn:li:activity:{activity_id}"
+                    else:
+                        continue
+                
+                # Author
+                author_el = (
+                    block.query_selector(".update-components-actor__title span[aria-hidden='true']")
+                    or block.query_selector(".feed-shared-actor__title")
+                )
+                author_name = author_el.inner_text().strip() if author_el else "LinkedIn User"
+                
+                # Filter Indonesia keywords
+                if content and is_indonesia_relevant(content, post_url):
+                    raw_posts.append({
+                        "post_url": post_url,
+                        "query_used": query,
+                        "snippet": content,
+                        "author_name": author_name,
+                    })
+            except Exception as post_err:
+                logger.debug(f"Error parsing direct LinkedIn post: {post_err}")
+                
         return raw_posts
 
     def extract(self, element_or_page) -> dict:
