@@ -1,6 +1,6 @@
 name: Echo time2
 on: 
-  schedule: 
+  # schedule: 
     # - cron: '*/5 * * * *'  
   workflow_dispatch:        
 
