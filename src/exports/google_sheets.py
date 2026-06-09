@@ -60,14 +60,19 @@ class GoogleSheetsExporter:
             return
 
         try:
-            # Check if headers exist
-            headers = ["Timestamp", "Platform", "Title", "Company", "Location", "Score", "Matched Skills", "URL"]
+            # Define headers
+            headers = ["Timestamp", "Platform", "Title", "Company", "Location", "Score", "Matched Skills", "Status", "Apply Link"]
             
-            # If sheet is totally empty, add headers
+            # If sheet is totally empty, add headers and format them
             try:
                 first_row = self.sheet.row_values(1)
                 if not first_row:
                     self.sheet.append_row(headers)
+                    # Make headers bold and add background color
+                    self.sheet.format("A1:I1", {
+                        "textFormat": {"bold": True},
+                        "backgroundColor": {"red": 0.8, "green": 0.9, "blue": 1.0}
+                    })
             except Exception:
                 # If error reading (e.g. empty sheet), just add headers
                 self.sheet.append_row(headers)
@@ -79,6 +84,10 @@ class GoogleSheetsExporter:
                 skills_list = job.get("matched_skills", [])
                 skills_str = ", ".join(skills_list) if skills_list else "None"
                 
+                # Make URL a clickable hyperlink
+                url = job.get("url", "")
+                hyperlink_formula = f'=HYPERLINK("{url}", "🔗 Apply Here")' if url else ""
+                
                 row = [
                     timestamp,
                     job.get("source", "Unknown"),
@@ -87,13 +96,14 @@ class GoogleSheetsExporter:
                     job.get("location", ""),
                     job.get("score", 0),
                     skills_str,
-                    job.get("url", "")
+                    "📝 To Apply",  # Default status
+                    hyperlink_formula
                 ]
                 rows_to_insert.append(row)
 
-            # Batch insert
+            # Batch insert with USER_ENTERED to parse formulas
             if rows_to_insert:
-                self.sheet.append_rows(rows_to_insert)
+                self.sheet.append_rows(rows_to_insert, value_input_option='USER_ENTERED')
                 logger.info(f"✅ Successfully exported {len(rows_to_insert)} jobs to Google Sheets.")
 
         except Exception as e:
