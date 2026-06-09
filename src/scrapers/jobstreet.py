@@ -11,7 +11,7 @@ class JobStreetScraper(BaseScraper):
     and robust selector fallbacks.
     """
 
-    MAX_PAGES = 3  # Scrape up to 3 pages
+    MAX_PAGES = 6  # Scrape up to 6 pages to ensure enough matching jobs
 
     def search(self, query: str, location: str) -> list[dict]:
         logger.info(f"Searching JobStreet jobs for '{query}' in '{location}'")

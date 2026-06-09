@@ -12,6 +12,11 @@ class Settings:
     SCRAPER_PROXY_SERVER: str = os.getenv("SCRAPER_PROXY_SERVER", "")
     SCRAPER_PROXY_USERNAME: str = os.getenv("SCRAPER_PROXY_USERNAME", "")
     SCRAPER_PROXY_PASSWORD: str = os.getenv("SCRAPER_PROXY_PASSWORD", "")
+    
+    # Google Sheets Integration
+    GOOGLE_SHEET_ID: str = os.getenv("GOOGLE_SHEET_ID", "")
+    GOOGLE_CREDENTIALS_JSON: str = os.getenv("GOOGLE_CREDENTIALS_JSON", "")
+    GOOGLE_CREDENTIALS_PATH: str = os.getenv("GOOGLE_CREDENTIALS_PATH", "google_credentials.json")
 
     @classmethod
     def validate(cls):

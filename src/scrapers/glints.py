@@ -29,7 +29,7 @@ class GlintsScraper(BaseScraper):
             page.wait_for_timeout(4000)
 
             # Auto-scroll to load more cards (Glints uses infinite scroll)
-            self.auto_scroll(page, scroll_count=5, delay_ms=1500)
+            self.auto_scroll(page, scroll_count=10, delay_ms=1500)
 
             # Try multiple card selectors
             cards = (

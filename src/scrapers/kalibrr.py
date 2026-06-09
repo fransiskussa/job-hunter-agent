@@ -29,7 +29,7 @@ class KalibrrScraper(BaseScraper):
             page.wait_for_timeout(4000)
 
             # Auto-scroll to load more cards
-            self.auto_scroll(page, scroll_count=4, delay_ms=1500)
+            self.auto_scroll(page, scroll_count=8, delay_ms=1500)
 
             # Multiple selector strategies
             cards = (
@@ -60,7 +60,7 @@ class KalibrrScraper(BaseScraper):
                 logger.info("Kalibrr retry with alternative URL...")
 
                 # Try direct search endpoint
-                alt_url = f"https://www.kalibrr.com/job-board/te/{encoded_query}?country=Indonesia"
+                alt_url = f"https://www.kalibrr.com/job-board/te/{encoded_query}?country=Indonesia&sort=freshness"
                 page.goto(alt_url, wait_until="domcontentloaded", timeout=30000)
                 self.check_session_validity(page, "Kalibrr")
                 page.wait_for_timeout(4000)
