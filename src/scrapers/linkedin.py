@@ -57,7 +57,7 @@ class LinkedInScraper(BaseScraper):
         page.wait_for_timeout(5000)
         
         # Auto-scroll to load more jobs in the sidebar
-        self.auto_scroll(page, scroll_count=8, delay_ms=1000)
+        self.auto_scroll(page, scroll_count=20, delay_ms=1000)
         
         cards = (
             page.query_selector_all("li.jobs-search-results__list-item")
