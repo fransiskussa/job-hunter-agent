@@ -7,9 +7,14 @@ we search Google with `site:` operator and parse the search result snippets.
 import logging
 import urllib.parse
 import re
+import threading
+import time
 from playwright.sync_api import Page
 
 logger = logging.getLogger(__name__)
+
+# Shared lock to synchronize all Google Search queries across thread workers
+google_search_lock = threading.Lock()
 
 # Lokasi asing yang harus di-exclude dari hasil
 EXCLUDE_LOCATIONS = [
@@ -127,7 +132,12 @@ def google_search_jobs(
     
     results = []
     try:
-        page.goto(url, wait_until="domcontentloaded", timeout=20000)
+        with google_search_lock:
+            # Cooldown delay to prevent triggering CAPTCHA when multiple threads search Google
+            logger.info("⏳ Acquiring Google Search Lock, waiting for cooldown...")
+            time.sleep(3)
+            page.goto(url, wait_until="domcontentloaded", timeout=20000)
+            
         page.wait_for_timeout(2000 + (500 * len(query.split())))
         
         # Parse Google search results

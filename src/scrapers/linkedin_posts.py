@@ -1,6 +1,8 @@
 import logging
+import urllib.parse
+import time
 from src.scrapers.base_scraper import BaseScraper, CookieExpiredException
-from src.scrapers.google_search_proxy import is_indonesia_relevant, EXCLUDE_LOCATIONS, INDONESIA_KEYWORDS
+from src.scrapers.google_search_proxy import is_indonesia_relevant, EXCLUDE_LOCATIONS, INDONESIA_KEYWORDS, google_search_lock
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +44,10 @@ class LinkedInPostsScraper(BaseScraper):
                 logger.info(f"LinkedIn Posts search template {template_idx + 1}/{len(self.SEARCH_TEMPLATES)}")
                 
                 try:
-                    page.goto(url, wait_until="domcontentloaded", timeout=20000)
+                    with google_search_lock:
+                        logger.info("⏳ Acquiring Google Search Lock for LinkedIn Posts, waiting for cooldown...")
+                        time.sleep(3)
+                        page.goto(url, wait_until="domcontentloaded", timeout=20000)
                     self.check_session_validity(page, "LinkedIn Posts")
                     page.wait_for_timeout(2000)
 
