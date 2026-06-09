@@ -9,6 +9,9 @@ class Settings:
     SUPABASE_KEY: str = os.getenv("SUPABASE_KEY", "")
     DISCORD_WEBHOOK_URL: str = os.getenv("DISCORD_WEBHOOK_URL", "")
     GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
+    SCRAPER_PROXY_SERVER: str = os.getenv("SCRAPER_PROXY_SERVER", "")
+    SCRAPER_PROXY_USERNAME: str = os.getenv("SCRAPER_PROXY_USERNAME", "")
+    SCRAPER_PROXY_PASSWORD: str = os.getenv("SCRAPER_PROXY_PASSWORD", "")
 
     @classmethod
     def validate(cls):

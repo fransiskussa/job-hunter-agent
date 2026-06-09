@@ -5,6 +5,8 @@ from abc import ABC, abstractmethod
 from playwright.sync_api import Playwright, Browser, BrowserContext, Page
 from src.database.repository import JobRepository
 
+from src.config.settings import settings
+
 class CookieExpiredException(Exception):
     """Raised when session cookies are expired or a login wall is hit."""
     pass
@@ -44,10 +46,19 @@ class BaseScraper(ABC):
     def _get_browser(self) -> Browser:
         """Reuse a single browser instance across all queries for this scraper."""
         if self._browser is None or not self._browser.is_connected():
-            self._browser = self.playwright.chromium.launch(
-                headless=True,
-                args=STEALTH_ARGS,
-            )
+            launch_kwargs = {
+                "headless": True,
+                "args": STEALTH_ARGS,
+            }
+            if settings.SCRAPER_PROXY_SERVER:
+                proxy_dict = {"server": settings.SCRAPER_PROXY_SERVER}
+                if settings.SCRAPER_PROXY_USERNAME:
+                    proxy_dict["username"] = settings.SCRAPER_PROXY_USERNAME
+                if settings.SCRAPER_PROXY_PASSWORD:
+                    proxy_dict["password"] = settings.SCRAPER_PROXY_PASSWORD
+                launch_kwargs["proxy"] = proxy_dict
+                logger.info(f"Using scraper proxy: {settings.SCRAPER_PROXY_SERVER}")
+            self._browser = self.playwright.chromium.launch(**launch_kwargs)
         return self._browser
 
     def _new_context(self, platform_name: str = None) -> BrowserContext:
@@ -124,6 +135,8 @@ class BaseScraper(ABC):
             raise CookieExpiredException(
                 f"Session expired or login required for '{platform_name}'. Redirected to: {page.url}"
             )
+
+
 
     # ── Helpers ──────────────────────────────────────────────────────
     @staticmethod

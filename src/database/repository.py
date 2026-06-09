@@ -115,3 +115,5 @@ class JobRepository:
             logger.info(f"Successfully saved/updated cookies for {platform_name} in DB.")
         except Exception as e:
             logger.error(f"Error saving cookies for {platform_name} to DB: {e}")
+
+
