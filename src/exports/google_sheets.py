@@ -84,9 +84,8 @@ class GoogleSheetsExporter:
                 skills_list = job.get("matched_skills", [])
                 skills_str = ", ".join(skills_list) if skills_list else "None"
                 
-                # Make URL a clickable hyperlink
+                # Use raw URL instead of HYPERLINK formula since some users find formulas unclickable
                 url = job.get("url", "")
-                hyperlink_formula = f'=HYPERLINK("{url}", "🔗 Apply Here")' if url else ""
                 
                 row = [
                     timestamp,
@@ -96,8 +95,8 @@ class GoogleSheetsExporter:
                     job.get("location", ""),
                     job.get("score", 0),
                     skills_str,
-                    "📝 To Apply",  # Default status
-                    hyperlink_formula
+                    "FALSE",  # User can set this to TRUE in Sheets via Data Validation (Checkbox)
+                    url
                 ]
                 rows_to_insert.append(row)
 

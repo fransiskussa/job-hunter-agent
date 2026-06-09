@@ -250,20 +250,28 @@ def run_pipeline():
     for post in inserted_posts:
         score, matched_skills, breakdown = matcher.calculate_score(post, is_post=True)
         matched_posts_report.append({
-            "author_name": post["author_name"],
-            "author_profile_url": post["author_profile_url"],
-            "company": post["company"],
-            "content": post["content"],
+            "source": "LinkedIn Posts",
+            "title": f"Post by {post['author_name']}",
+            "company": post["company"] or "-",
+            "location": "Indonesia",
             "score": score,
             "matched_skills": matched_skills,
+            "url": post["post_url"],
+            
+            # keep original fields for discord
+            "author_name": post["author_name"],
+            "author_profile_url": post["author_profile_url"],
+            "content": post["content"],
             "post_url": post["post_url"],
         })
 
     matched_posts_report.sort(key=lambda x: x["score"], reverse=True)
 
-    # 8. Export to Google Sheets
+    # 8. Export to Google Sheets (Combine Jobs and Posts)
     sheets_exporter = GoogleSheetsExporter()
-    sheets_exporter.export_jobs(matched_jobs_report)
+    combined_for_sheets = matched_jobs_report + matched_posts_report
+    combined_for_sheets.sort(key=lambda x: x["score"], reverse=True)
+    sheets_exporter.export_jobs(combined_for_sheets)
 
     # 9. Send reports to Discord
     notifier.send_report(matched_jobs_report, matched_posts_report)
