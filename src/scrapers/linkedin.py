@@ -1,5 +1,4 @@
-import logging
-from src.scrapers.base_scraper import BaseScraper
+from src.scrapers.base_scraper import BaseScraper, CookieExpiredException
 from src.scrapers.google_search_proxy import google_search_jobs, is_indonesia_relevant
 
 logger = logging.getLogger(__name__)
@@ -30,6 +29,7 @@ class LinkedInScraper(BaseScraper):
                 location=location,
                 max_results=15,
             )
+            self.check_session_validity(page, "LinkedIn Jobs")
             
             for result in results:
                 raw_data = self.extract(result)
@@ -53,6 +53,7 @@ class LinkedInScraper(BaseScraper):
                     max_results=15,
                     extra_terms='"hiring" OR "engineer" OR "developer"',
                 )
+                self.check_session_validity(page, "LinkedIn Jobs")
                 for result in broader_results:
                     raw_data = self.extract(result)
                     if raw_data and raw_data.get("title") and raw_data.get("url"):
@@ -62,6 +63,8 @@ class LinkedInScraper(BaseScraper):
 
                 logger.info(f"LinkedIn Jobs retry found {len(raw_jobs)} valid jobs")
 
+        except CookieExpiredException:
+            raise
         except Exception as e:
             logger.error(f"Error scraping LinkedIn Jobs via Google: {e}")
         finally:

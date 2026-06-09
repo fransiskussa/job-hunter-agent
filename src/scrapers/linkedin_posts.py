@@ -1,6 +1,4 @@
-import logging
-import urllib.parse
-from src.scrapers.base_scraper import BaseScraper
+from src.scrapers.base_scraper import BaseScraper, CookieExpiredException
 from src.scrapers.google_search_proxy import is_indonesia_relevant, EXCLUDE_LOCATIONS, INDONESIA_KEYWORDS
 
 logger = logging.getLogger(__name__)
@@ -44,6 +42,7 @@ class LinkedInPostsScraper(BaseScraper):
                 
                 try:
                     page.goto(url, wait_until="domcontentloaded", timeout=20000)
+                    self.check_session_validity(page, "LinkedIn Posts")
                     page.wait_for_timeout(2000)
 
                     # Extract all LinkedIn post/feed links from Google results
@@ -102,6 +101,8 @@ class LinkedInPostsScraper(BaseScraper):
                         except Exception as e:
                             logger.debug(f"Error extracting post link: {e}")
 
+                except CookieExpiredException:
+                    raise
                 except Exception as e:
                     logger.warning(f"Google search template {template_idx + 1} failed: {e}")
                 
@@ -109,6 +110,8 @@ class LinkedInPostsScraper(BaseScraper):
                 if template_idx < len(self.SEARCH_TEMPLATES) - 1:
                     self.random_delay(1500, 3500)
 
+        except CookieExpiredException:
+            raise
         except Exception as e:
             logger.error(f"Error in LinkedIn Posts scraper: {e}")
         finally:

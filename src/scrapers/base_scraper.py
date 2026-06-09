@@ -5,6 +5,10 @@ from abc import ABC, abstractmethod
 from playwright.sync_api import Playwright, Browser, BrowserContext, Page
 from src.database.repository import JobRepository
 
+class CookieExpiredException(Exception):
+    """Raised when session cookies are expired or a login wall is hit."""
+    pass
+
 logger = logging.getLogger(__name__)
 
 # Pool User-Agent untuk rotasi anti-detection
@@ -62,8 +66,37 @@ class BaseScraper(ABC):
             cookies = self.repository.get_platform_cookies(platform_name)
             if cookies:
                 try:
-                    context.add_cookies(cookies)
-                    logger.info(f"🔑 Loaded cookies for platform '{platform_name}' from DB")
+                    # Sanitize cookies for Playwright compatibility
+                    sanitized_cookies = []
+                    for cookie in cookies:
+                        # Copy the cookie dict to avoid modifying in-place
+                        c = cookie.copy()
+                        
+                        # Playwright expects sameSite to be Strict, Lax, or None (case-sensitive)
+                        same_site = c.get("sameSite")
+                        if isinstance(same_site, str):
+                            ss_lower = same_site.lower()
+                            if ss_lower == "lax":
+                                c["sameSite"] = "Lax"
+                            elif ss_lower == "strict":
+                                c["sameSite"] = "Strict"
+                            elif ss_lower in ["none", "no_restriction"]:
+                                c["sameSite"] = "None"
+                            else:
+                                c.pop("sameSite", None)
+                        else:
+                            c.pop("sameSite", None)
+                        
+                        # Remove non-standard properties that throw errors in Playwright
+                        c.pop("hostOnly", None)
+                        c.pop("session", None)
+                        c.pop("storeId", None)
+                        c.pop("id", None)
+                        
+                        sanitized_cookies.append(c)
+
+                    context.add_cookies(sanitized_cookies)
+                    logger.info(f"🔑 Loaded and sanitized cookies for platform '{platform_name}' from DB")
                 except Exception as e:
                     logger.error(f"❌ Failed to load cookies for '{platform_name}' from DB: {e}")
             else:
@@ -81,6 +114,16 @@ class BaseScraper(ABC):
         if self._browser and self._browser.is_connected():
             self._browser.close()
             self._browser = None
+
+    def check_session_validity(self, page: Page, platform_name: str):
+        """Verify if the browser context has been blocked or redirected to a login wall."""
+        url = page.url.lower()
+        if "google.com/sorry" in url:
+            raise Exception("Google Search Proxy blocked (CAPTCHA/429). Please try again later or use proxies.")
+        if any(term in url for term in ["/login", "/signin", "/signup", "/checkpoint", "login.yahoo", "accounts.google"]):
+            raise CookieExpiredException(
+                f"Session expired or login required for '{platform_name}'. Redirected to: {page.url}"
+            )
 
     # ── Helpers ──────────────────────────────────────────────────────
     @staticmethod

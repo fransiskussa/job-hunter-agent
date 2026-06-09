@@ -1,6 +1,4 @@
-import logging
-import urllib.parse
-from src.scrapers.base_scraper import BaseScraper
+from src.scrapers.base_scraper import BaseScraper, CookieExpiredException
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +23,7 @@ class KalibrrScraper(BaseScraper):
             url = f"https://www.kalibrr.com/job-board/te/{encoded_query}?country=Indonesia&sort=freshness"
 
             page.goto(url, wait_until="domcontentloaded", timeout=30000)
+            self.check_session_validity(page, "Kalibrr")
             page.wait_for_timeout(4000)
 
             # Auto-scroll to load more cards
@@ -61,6 +60,7 @@ class KalibrrScraper(BaseScraper):
                 # Try direct search endpoint
                 alt_url = f"https://www.kalibrr.com/job-board/te/{encoded_query}?country=Indonesia"
                 page.goto(alt_url, wait_until="domcontentloaded", timeout=30000)
+                self.check_session_validity(page, "Kalibrr")
                 page.wait_for_timeout(4000)
                 self.auto_scroll(page, scroll_count=3, delay_ms=1500)
 
@@ -81,6 +81,8 @@ class KalibrrScraper(BaseScraper):
                     except Exception as e:
                         logger.debug(f"Kalibrr retry error: {e}")
 
+        except CookieExpiredException:
+            raise
         except Exception as e:
             logger.error(f"Error scraping Kalibrr: {e}")
         finally:

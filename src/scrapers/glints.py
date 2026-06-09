@@ -1,6 +1,4 @@
-import logging
-import urllib.parse
-from src.scrapers.base_scraper import BaseScraper
+from src.scrapers.base_scraper import BaseScraper, CookieExpiredException
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +23,7 @@ class GlintsScraper(BaseScraper):
             url = f"https://glints.com/id/en/opportunities/jobs?keyword={encoded_query}&country=ID&sortBy=LATEST"
 
             page.goto(url, wait_until="domcontentloaded", timeout=30000)
+            self.check_session_validity(page, "Glints")
             page.wait_for_timeout(4000)
 
             # Auto-scroll to load more cards (Glints uses infinite scroll)
@@ -61,6 +60,7 @@ class GlintsScraper(BaseScraper):
                 # Try alternative URL format
                 alt_url = f"https://glints.com/id/en/opportunities/jobs?keyword={encoded_query}&country=ID&lowestLocationLevel=COUNTRY"
                 page.goto(alt_url, wait_until="domcontentloaded", timeout=30000)
+                self.check_session_validity(page, "Glints")
                 page.wait_for_timeout(4000)
                 self.auto_scroll(page, scroll_count=3, delay_ms=1500)
 
@@ -81,6 +81,8 @@ class GlintsScraper(BaseScraper):
                     except Exception as e:
                         logger.debug(f"Glints retry error: {e}")
 
+        except CookieExpiredException:
+            raise
         except Exception as e:
             logger.error(f"Error scraping Glints: {e}")
         finally:

@@ -1,6 +1,4 @@
-import logging
-import urllib.parse
-from src.scrapers.base_scraper import BaseScraper
+from src.scrapers.base_scraper import BaseScraper, CookieExpiredException
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +30,7 @@ class JobStreetScraper(BaseScraper):
                 
                 try:
                     page.goto(url, wait_until="domcontentloaded", timeout=30000)
+                    self.check_session_validity(page, "JobStreet")
                     page.wait_for_timeout(4000)  # Wait for initial render
 
                     # Auto-scroll to trigger lazy-loading
@@ -70,6 +69,8 @@ class JobStreetScraper(BaseScraper):
                     if page_count < 3:
                         break
 
+                except CookieExpiredException:
+                    raise
                 except Exception as e:
                     logger.error(f"Error loading JobStreet page {page_num}: {e}")
                     break
@@ -78,6 +79,8 @@ class JobStreetScraper(BaseScraper):
                 if page_num < self.MAX_PAGES:
                     self.random_delay(1500, 3000)
 
+        except CookieExpiredException:
+            raise
         except Exception as e:
             logger.error(f"Error scraping JobStreet: {e}")
         finally:

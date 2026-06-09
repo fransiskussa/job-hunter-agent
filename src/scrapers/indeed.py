@@ -1,5 +1,4 @@
-import logging
-from src.scrapers.base_scraper import BaseScraper
+from src.scrapers.base_scraper import BaseScraper, CookieExpiredException
 from src.scrapers.google_search_proxy import google_search_jobs, is_indonesia_relevant
 
 logger = logging.getLogger(__name__)
@@ -30,6 +29,7 @@ class IndeedScraper(BaseScraper):
                 location=location,
                 max_results=15,
             )
+            self.check_session_validity(page, "Indeed")
             
             for result in results:
                 raw_data = self.extract(result)
@@ -54,6 +54,7 @@ class IndeedScraper(BaseScraper):
                     max_results=15,
                     extra_terms='"lowongan" OR "hiring"',
                 )
+                self.check_session_validity(page, "Indeed")
                 for result in broader_results:
                     raw_data = self.extract(result)
                     if raw_data and raw_data.get("title") and raw_data.get("url"):
@@ -63,6 +64,8 @@ class IndeedScraper(BaseScraper):
 
                 logger.info(f"Indeed retry found {len(raw_jobs)} valid jobs")
 
+        except CookieExpiredException:
+            raise
         except Exception as e:
             logger.error(f"Error scraping Indeed via Google: {e}")
         finally:

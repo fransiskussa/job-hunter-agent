@@ -120,6 +120,13 @@ class DiscordNotifier:
         }
         return self._send_payload(payload)
 
+    def send_warning(self, message: str) -> bool:
+        """Send a warning alert to Discord."""
+        payload = {
+            "content": f"⚠️ **[WARNING]** {message}"
+        }
+        return self._send_payload(payload)
+
     def _send_payload(self, payload: dict) -> bool:
         try:
             res = requests.post(self.webhook_url, json=payload, timeout=15)
