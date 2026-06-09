@@ -138,6 +138,7 @@ class LinkedInPostsScraper(BaseScraper):
 
         logger.info(f"LinkedIn Posts found {len(raw_posts)} unique Indonesia-relevant posts")
         return raw_posts
+        # return raw_posts[:20]
 
     def _search_direct(self, page: Page, query: str, location: str) -> list[dict]:
         """Scrape LinkedIn hiring posts directly when logged in."""
