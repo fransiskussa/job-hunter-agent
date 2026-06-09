@@ -27,13 +27,11 @@ class JobRepository:
     def save_jobs(self, jobs: list[dict]) -> list[dict]:
         """Save jobs to the jobs table, skipping existing URLs. Returns inserted jobs."""
         inserted_jobs = []
-        skipped_duplicates = 0
         for job in jobs:
             try:
                 # Check if job already exists by url to avoid duplicates
                 check = self.supabase.table("jobs").select("id").eq("url", job["url"]).execute()
                 if check.data:
-                    skipped_duplicates += 1
                     continue
                 
                 # Insert
@@ -49,10 +47,6 @@ class JobRepository:
                     inserted_jobs.append(res.data[0])
             except Exception as e:
                 logger.error(f"Error saving job {job.get('title')} from {job.get('source')}: {e}")
-                
-        if skipped_duplicates > 0:
-            logger.info(f"Database: Skipped {skipped_duplicates} duplicate jobs.")
-            
         return inserted_jobs
 
     def save_job_matches(self, matches: list[dict]):
@@ -67,12 +61,10 @@ class JobRepository:
     def save_linkedin_posts(self, posts: list[dict]) -> list[dict]:
         """Save hiring posts to linkedin_posts table, skipping duplicates. Returns inserted posts."""
         inserted_posts = []
-        skipped_duplicates = 0
         for post in posts:
             try:
                 check = self.supabase.table("linkedin_posts").select("id").eq("post_url", post["post_url"]).execute()
                 if check.data:
-                    skipped_duplicates += 1
                     continue
                 
                 res = self.supabase.table("linkedin_posts").insert({
@@ -86,10 +78,6 @@ class JobRepository:
                     inserted_posts.append(res.data[0])
             except Exception as e:
                 logger.error(f"Error saving LinkedIn post: {e}")
-                
-        if skipped_duplicates > 0:
-            logger.info(f"Database: Skipped {skipped_duplicates} duplicate LinkedIn posts.")
-            
         return inserted_posts
 
     def update_source_status(self, source_name: str, status: str):

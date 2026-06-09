@@ -1,5 +1,4 @@
 import logging
-import urllib.parse
 from src.scrapers.base_scraper import BaseScraper, CookieExpiredException
 from src.scrapers.google_search_proxy import google_search_jobs, is_indonesia_relevant
 
@@ -26,61 +25,50 @@ class IndeedScraper(BaseScraper):
             # Search Google for Indeed Indonesia listings
             results = google_search_jobs(
                 page=page,
-                site_domain="id.indeed.com/viewjob",
+                site_domain="id.indeed.com",
                 query=query,
                 location=location,
                 max_results=15,
             )
             self.check_session_validity(page, "Indeed")
             
-            logger.info(f"[INDEED-STAGE-EXTRACT] Found {len(results)} raw Google results.")
-            
             for result in results:
                 raw_data = self.extract(result)
                 if raw_data and raw_data.get("title") and raw_data.get("url"):
-                    # Relaxed Filter: pastikan relevan Indonesia
+                    # Filter: pastikan relevan Indonesia
                     combined_text = f"{raw_data['title']} {raw_data.get('snippet', '')} {raw_data.get('company', '')}"
                     if is_indonesia_relevant(combined_text, raw_data["url"]):
                         raw_jobs.append(raw_data)
                     else:
-                        logger.warning(f"[INDEED-STAGE-EXTRACT] Filtered out (Not Indonesia): '{raw_data['title']}' | URL: {raw_data['url']}")
-                else:
-                    logger.warning(f"[INDEED-STAGE-EXTRACT] Dropped result due to missing title or url: {result}")
+                        logger.debug(f"Filtered out non-Indonesia Indeed result: {raw_data['title']}")
 
-            logger.info(f"[INDEED-STAGE-EXTRACT] {len(raw_jobs)} items passed extraction and location filters.")
+            logger.info(f"Indeed found {len(raw_jobs)} valid jobs via Google Search")
 
             # Retry with broader query if no results
             if not raw_jobs:
-                logger.warning("[INDEED-STAGE-FALLBACK] ⚠️ No results from primary Indeed search. Triggering SAFE FALLBACK MODE...")
                 self.random_delay(1000, 3000)
                 broader_results = google_search_jobs(
                     page=page,
                     site_domain="id.indeed.com",
                     query=query,
-                    location="", # Remove location constraint
+                    location="Jakarta",
                     max_results=15,
                     extra_terms='"lowongan" OR "hiring"',
                 )
                 self.check_session_validity(page, "Indeed")
-                logger.info(f"[INDEED-STAGE-FALLBACK] Found {len(broader_results)} raw results.")
-                
                 for result in broader_results:
                     raw_data = self.extract(result)
                     if raw_data and raw_data.get("title") and raw_data.get("url"):
                         combined_text = f"{raw_data['title']} {raw_data.get('snippet', '')} {raw_data.get('company', '')}"
                         if is_indonesia_relevant(combined_text, raw_data["url"]):
                             raw_jobs.append(raw_data)
-                        else:
-                            logger.warning(f"[INDEED-STAGE-FALLBACK] Filtered out (Not Indonesia): '{raw_data['title']}' | URL: {raw_data['url']}")
-                    else:
-                        logger.warning(f"[INDEED-STAGE-FALLBACK] Dropped result due to missing title or url: {result}")
 
-                logger.info(f"[INDEED-STAGE-FALLBACK] {len(raw_jobs)} items passed fallback extraction.")
+                logger.info(f"Indeed retry found {len(raw_jobs)} valid jobs")
 
         except CookieExpiredException:
             raise
         except Exception as e:
-            logger.error(f"[INDEED-STAGE-SEARCH] Error scraping Indeed via Google: {e}")
+            logger.error(f"Error scraping Indeed via Google: {e}")
         finally:
             context.close()
 
@@ -113,6 +101,10 @@ class IndeedScraper(BaseScraper):
                 location = loc
                 break
 
+        # Clean URL
+        if url:
+            url = url.split("?")[0]
+
         return {
             "title": title,
             "company": company,
@@ -124,33 +116,11 @@ class IndeedScraper(BaseScraper):
 
     def normalize(self, raw_data: dict) -> dict:
         if not raw_data.get("title") or not raw_data.get("url"):
-            logger.warning(f"[INDEED-STAGE-NORMALIZE] Failed: Missing Title or URL -> {raw_data}")
             return {}
 
         url = raw_data.get("url", "").lower()
-        
-        # Reject ANY relative link (Google UI navigation buttons like /search, /travel)
-        if url.startswith("/"):
-            logger.warning(f"[INDEED-STAGE-NORMALIZE] Rejected Google UI relative link: '{raw_data.get('title')}' -> {url}")
-            return {}
-            
-        # Reject non-http links just in case
-        if not url.startswith("http"):
-            return {}
-        
-        # Safe extraction of Indeed vjk to construct clean URL
-        try:
-            parsed_url = urllib.parse.urlparse(url)
-            query_params = urllib.parse.parse_qs(parsed_url.query)
-            vjk = query_params.get("vjk", query_params.get("jk", []))
-            if vjk:
-                url = f"https://id.indeed.com/viewjob?jk={vjk[0]}"
-        except Exception as e:
-            logger.debug(f"[INDEED-STAGE-NORMALIZE] Error parsing Indeed URL query params: {e}")
-
-        # Final check to ensure it's actually an indeed domain
-        if "indeed.com" not in url or "google.com" in url:
-            logger.warning(f"[INDEED-STAGE-NORMALIZE] Rejected invalid or Google UI URL: '{raw_data.get('title')}' -> {url}")
+        # Reject Google UI links or non-Indeed links
+        if "indeed.com" not in url or url.startswith("/search") or "google.com" in url:
             return {}
 
         desc = raw_data.get("description") or f"Job opportunity for a {raw_data['title']} at {raw_data.get('company', 'Unknown')} in {raw_data.get('location', 'Indonesia')}."
@@ -161,5 +131,5 @@ class IndeedScraper(BaseScraper):
             "company": raw_data.get("company", "Unknown"),
             "location": raw_data.get("location", "Indonesia"),
             "description": desc,
-            "url": url,
+            "url": raw_data["url"],
         }
