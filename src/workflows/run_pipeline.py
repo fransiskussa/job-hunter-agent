@@ -220,7 +220,8 @@ def run_pipeline():
     # Process Jobs Matches
     matched_jobs_report = []
     for job in inserted_jobs:
-        score, matched_skills = matcher.calculate_score(job, is_post=False)
+        score, matched_skills, breakdown = matcher.calculate_score(job, is_post=False)
+        logger.info(f"📊 Job: '{job.get('title')}' @ {job.get('company')} | Score: {score} | Breakdown: {breakdown}")
         matches_to_save.append({
             "job_id": job["id"],
             "score": score,
@@ -243,7 +244,8 @@ def run_pipeline():
     # Process Posts Matches
     matched_posts_report = []
     for post in inserted_posts:
-        score, matched_skills = matcher.calculate_score(post, is_post=True)
+        score, matched_skills, breakdown = matcher.calculate_score(post, is_post=True)
+        logger.info(f"📊 Post by: '{post.get('author_name')}' | Score: {score} | Breakdown: {breakdown}")
         matched_posts_report.append({
             "author_name": post["author_name"],
             "author_profile_url": post["author_profile_url"],
