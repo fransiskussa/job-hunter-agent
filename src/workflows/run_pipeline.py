@@ -38,9 +38,8 @@ def scrape_platform_worker(platform_name, scraper_class, queries, primary_locati
                     normalized = scraper.normalize(raw)
                     if normalized:
                         score, matched_skills, breakdown = matcher.calculate_score(normalized, is_post=False)
-                        # Longgarkan: masuk jika Role sesuai ATAU ada Skill yang cocok
-                        if breakdown.get("role", 0) > 0 or breakdown.get("skills", 0) > 0:
-                            platform_jobs.append(normalized)
+                        # Tanpa filter ketat, semua lowongan hasil pencarian dimasukkan
+                        platform_jobs.append(normalized)
             scraper.close_browser()
             
         elapsed = round(time.time() - scraper_start, 1)
@@ -98,8 +97,8 @@ def scrape_linkedin_posts_worker(queries, primary_location, repo, notifier, matc
                     normalized = posts_scraper.normalize(raw)
                     if normalized:
                         score, matched_skills, breakdown = matcher.calculate_score(normalized, is_post=True)
-                        if breakdown.get("role", 0) > 0 or breakdown.get("skills", 0) > 0:
-                            platform_posts.append(normalized)
+                        # Tanpa filter ketat, semua post hasil pencarian dimasukkan
+                        platform_posts.append(normalized)
             posts_scraper.close_browser()
             
         elapsed = round(time.time() - scraper_start, 1)

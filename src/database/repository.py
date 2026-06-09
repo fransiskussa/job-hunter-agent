@@ -100,13 +100,20 @@ class JobRepository:
                 .execute()
             if response.data:
                 cookies_data = response.data[0].get("cookies", [])
-                if isinstance(cookies_data, str):
-                    import json
+                
+                # Handle double-encoded JSON strings
+                import json
+                while isinstance(cookies_data, str):
                     try:
                         cookies_data = json.loads(cookies_data)
                     except json.JSONDecodeError:
                         logger.error(f"Failed to parse cookies string for {platform_name}")
                         return []
+                
+                if not isinstance(cookies_data, list):
+                    logger.error(f"Cookies for {platform_name} parsed to {type(cookies_data)}, expected list")
+                    return []
+                    
                 return cookies_data
         except Exception as e:
             logger.error(f"Error fetching cookies for {platform_name} from DB: {e}")
