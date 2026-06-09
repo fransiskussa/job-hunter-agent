@@ -58,8 +58,8 @@ class JobMatcher:
             import time
             import logging
             
-            # Rate limit protection: sleep for 2 seconds before each API call
-            time.sleep(2.0)
+            # Rate limit protection: sleep for 4.5 seconds before each API call to stay under 15 RPM free tier limit
+            time.sleep(4.5)
             
             url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={settings.GEMINI_API_KEY}"
             prompt = f"""
@@ -105,15 +105,15 @@ Respond with a JSON object containing exactly these fields:
                         matched_skills = result.get("matched_skills", [])
                         return min(100, max(0, score)), matched_skills
                     elif res.status_code == 429:
-                        logging.getLogger(__name__).warning(f"Gemini API rate limit hit (429). Retrying attempt {attempt}/3...")
-                        time.sleep(5.0 * attempt)
+                        logging.getLogger(__name__).warning(f"Gemini API rate limit hit (429). Retrying attempt {attempt}/3 after cooldown...")
+                        time.sleep(15.0 * attempt)
                     else:
                         logging.getLogger(__name__).warning(f"Gemini API returned status {res.status_code}: {res.text}. Attempt {attempt}/3.")
-                        time.sleep(2.0)
+                        time.sleep(4.0)
                 except Exception as e:
                     logging.getLogger(__name__).warning(f"Gemini API attempt {attempt}/3 failed: {e}")
                     if attempt < 3:
-                        time.sleep(3.0 * attempt)
+                        time.sleep(5.0 * attempt)
             
             logging.getLogger(__name__).warning("All 3 Gemini API attempts failed. Falling back to Regex matcher.")
 
