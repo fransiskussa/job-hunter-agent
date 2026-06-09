@@ -62,15 +62,11 @@ class BaseScraper(ABC):
         return self._browser
 
     def _new_context(self, platform_name: str = None) -> BrowserContext:
-        """Create a fresh context with a random user-agent and optional cookies."""
+        """Create a fresh context with a random user-agent and optional cookies via storage_state."""
         browser = self._get_browser()
         ua = random.choice(USER_AGENTS)
-        context = browser.new_context(
-            user_agent=ua,
-            viewport={"width": 1280, "height": 800},
-            locale="id-ID",
-            timezone_id="Asia/Jakarta",
-        )
+        
+        storage_state = None
         
         # Load cookies from DB if platform name is provided
         if platform_name:
@@ -80,10 +76,9 @@ class BaseScraper(ABC):
                     # Sanitize cookies for Playwright compatibility
                     sanitized_cookies = []
                     for cookie in cookies:
-                        # Copy the cookie dict to avoid modifying in-place
                         c = cookie.copy()
                         
-                        # Playwright expects sameSite to be Strict, Lax, or None (case-sensitive)
+                        # Playwright expects sameSite to be Strict, Lax, or None
                         same_site = c.get("sameSite")
                         if isinstance(same_site, str):
                             ss_lower = same_site.lower()
@@ -97,21 +92,34 @@ class BaseScraper(ABC):
                                 c.pop("sameSite", None)
                         else:
                             c.pop("sameSite", None)
+                            
+                        # Normalize domains (e.g. .www.linkedin.com -> .linkedin.com)
+                        domain = c.get("domain", "")
+                        if "linkedin.com" in domain and not domain.startswith("."):
+                            c["domain"] = "." + domain.replace("www.", "")
+                        elif domain.startswith(".www."):
+                            c["domain"] = domain.replace(".www.", ".")
                         
-                        # Remove non-standard properties that throw errors in Playwright
-                        c.pop("hostOnly", None)
-                        c.pop("session", None)
-                        c.pop("storeId", None)
-                        c.pop("id", None)
-                        
+                        # Remove non-standard properties
+                        for key in ["hostOnly", "session", "storeId", "id", "partitionKey", "_crHasCrossSiteAncestor"]:
+                            c.pop(key, None)
+                            
                         sanitized_cookies.append(c)
 
-                    context.add_cookies(sanitized_cookies)
-                    logger.info(f"🔑 Loaded and sanitized cookies for platform '{platform_name}' from DB")
+                    storage_state = {"cookies": sanitized_cookies, "origins": []}
+                    logger.info(f"🔑 Prepared storage_state for platform '{platform_name}' from DB")
                 except Exception as e:
-                    logger.error(f"❌ Failed to load cookies for '{platform_name}' from DB: {e}")
+                    logger.error(f"❌ Failed to parse cookies for '{platform_name}' from DB: {e}")
             else:
                 logger.warning(f"⚠️ No cookies found in DB for platform: '{platform_name}'")
+
+        context = browser.new_context(
+            user_agent=ua,
+            viewport={"width": 1280, "height": 800},
+            locale="id-ID",
+            timezone_id="Asia/Jakarta",
+            storage_state=storage_state if storage_state else None
+        )
 
         # Inject stealth script to mask navigator.webdriver
         context.add_init_script("""

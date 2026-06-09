@@ -52,7 +52,7 @@ class LinkedInPostsScraper(BaseScraper):
 
                 search_query = template.replace("{query}", query)
                 encoded = urllib.parse.quote(search_query)
-                url = f"https://www.google.com/search?q={encoded}&num=15&hl=id"
+                url = f"https://www.google.com/search?q={encoded}&num=15&hl=id&tbs=qdr:m3"
 
                 logger.info(f"LinkedIn Posts search template {template_idx + 1}/{len(self.SEARCH_TEMPLATES)}")
                 
@@ -145,7 +145,8 @@ class LinkedInPostsScraper(BaseScraper):
         import urllib.parse
         search_query = f'"{query}" (hiring OR lowongan OR open position) Indonesia'
         encoded_query = urllib.parse.quote(search_query)
-        url = f"https://www.linkedin.com/search/results/content/?keywords={encoded_query}&origin=SWITCH_SEARCH_VERTICAL"
+        # We use past-month for Posts direct search as it is the closest to "recent 3 months" natively supported by LinkedIn Content Search
+        url = f"https://www.linkedin.com/search/results/content/?keywords={encoded_query}&origin=SWITCH_SEARCH_VERTICAL&datePosted=%22past-month%22"
         
         page.goto(url, wait_until="domcontentloaded", timeout=30000)
         self.check_session_validity(page, "LinkedIn Posts")

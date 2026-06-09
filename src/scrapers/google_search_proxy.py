@@ -107,6 +107,7 @@ def google_search_jobs(
     location: str = "Indonesia",
     max_results: int = 20,
     extra_terms: str = "",
+    time_range: str = "m3",
 ) -> list[dict]:
     """
     Search Google with site: operator and return parsed results.
@@ -127,6 +128,8 @@ def google_search_jobs(
     search_query = " ".join(search_parts)
     encoded = urllib.parse.quote(search_query)
     url = f"https://www.google.com/search?q={encoded}&num={max_results}&hl=id"
+    if time_range:
+        url += f"&tbs=qdr:{time_range}"
     
     logger.info(f"Google Search: {search_query}")
     

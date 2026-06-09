@@ -50,7 +50,7 @@ class LinkedInScraper(BaseScraper):
         import urllib.parse
         encoded_query = urllib.parse.quote(query)
         encoded_loc = urllib.parse.quote(location)
-        url = f"https://www.linkedin.com/jobs/search/?keywords={encoded_query}&location={encoded_loc}&f_TPR=r2592000&sortBy=DD"
+        url = f"https://www.linkedin.com/jobs/search/?keywords={encoded_query}&location={encoded_loc}&f_TPR=r7776000&sortBy=DD"
         
         page.goto(url, wait_until="domcontentloaded", timeout=30000)
         self.check_session_validity(page, "LinkedIn Jobs")
