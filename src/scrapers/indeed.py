@@ -129,6 +129,15 @@ class IndeedScraper(BaseScraper):
 
         url = raw_data.get("url", "").lower()
         
+        # Reject ANY relative link (Google UI navigation buttons like /search, /travel)
+        if url.startswith("/"):
+            logger.warning(f"[INDEED-STAGE-NORMALIZE] Rejected Google UI relative link: '{raw_data.get('title')}' -> {url}")
+            return {}
+            
+        # Reject non-http links just in case
+        if not url.startswith("http"):
+            return {}
+        
         # Safe extraction of Indeed vjk to construct clean URL
         try:
             parsed_url = urllib.parse.urlparse(url)
@@ -139,8 +148,8 @@ class IndeedScraper(BaseScraper):
         except Exception as e:
             logger.debug(f"[INDEED-STAGE-NORMALIZE] Error parsing Indeed URL query params: {e}")
 
-        # Reject Google UI links or non-Indeed links
-        if "indeed.com" not in url or url.startswith("/search") or "google.com" in url:
+        # Final check to ensure it's actually an indeed domain
+        if "indeed.com" not in url or "google.com" in url:
             logger.warning(f"[INDEED-STAGE-NORMALIZE] Rejected invalid or Google UI URL: '{raw_data.get('title')}' -> {url}")
             return {}
 
