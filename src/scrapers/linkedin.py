@@ -1,3 +1,4 @@
+import logging
 from src.scrapers.base_scraper import BaseScraper, CookieExpiredException
 from src.scrapers.google_search_proxy import google_search_jobs, is_indonesia_relevant
 

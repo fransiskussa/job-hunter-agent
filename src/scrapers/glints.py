@@ -1,3 +1,5 @@
+import logging
+import urllib.parse
 from src.scrapers.base_scraper import BaseScraper, CookieExpiredException
 
 logger = logging.getLogger(__name__)
