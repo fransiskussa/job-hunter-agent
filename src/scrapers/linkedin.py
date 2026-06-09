@@ -25,23 +25,103 @@ class LinkedInScraper(BaseScraper):
             cookies = self.repository.get_platform_cookies("linkedin")
             if not cookies:
                 cookies = self.repository.get_platform_cookies("linkedin jobs")
-            if not cookies:
-                logger.error("LinkedIn requires login cookies. No cookies found in database.")
-                raise CookieExpiredException("No cookies found for LinkedIn.")
                 
-            raw_jobs = self._search_direct(page, query, location)
-            if raw_jobs:
-                logger.info(f"✅ Successfully collected {len(raw_jobs)} jobs directly from LinkedIn")
+            if not cookies:
+                logger.warning("LinkedIn login cookies not found in database. Trying guest search...")
+                raw_jobs = self._search_guest(page, query, location)
             else:
-                logger.warning(f"No jobs found directly on LinkedIn for '{query}'")
+                try:
+                    raw_jobs = self._search_direct(page, query, location)
+                    if not raw_jobs:
+                        logger.warning("Direct LinkedIn search returned 0 results. Trying guest search fallback...")
+                        raw_jobs = self._search_guest(page, query, location)
+                except Exception as direct_err:
+                    logger.warning(f"Direct LinkedIn search failed ({direct_err}). Trying guest search fallback...")
+                    raw_jobs = self._search_guest(page, query, location)
 
-        except CookieExpiredException:
-            raise
         except Exception as e:
             logger.error(f"Error scraping LinkedIn Jobs: {e}")
         finally:
             context.close()
 
+        return raw_jobs
+
+    def _search_guest(self, page: Page, query: str, location: str) -> list[dict]:
+        """Scrape LinkedIn public jobs search as guest when login session is unavailable."""
+        logger.info(f"Scraping LinkedIn Jobs as guest for '{query}' in '{location}'")
+        import urllib.parse
+        encoded_query = urllib.parse.quote(query)
+        encoded_loc = urllib.parse.quote(location)
+        url = f"https://www.linkedin.com/jobs/search?keywords={encoded_query}&location={encoded_loc}&f_TPR=r2592000"
+        
+        page.goto(url, wait_until="domcontentloaded", timeout=40000)
+        page.wait_for_timeout(4000)
+        
+        # Remove login modals and backdrop overlays via JS to enable full scrolling and extraction
+        page.evaluate("""
+            const selectors = [
+                'div[class*="sign-in-modal"]', 
+                'div[class*="login-modal"]', 
+                '.modal', 
+                '.modal-overlay',
+                '.contextual-sign-in-modal',
+                '.contextual-sign-in-modal__overlay'
+            ];
+            selectors.forEach(sel => {
+                document.querySelectorAll(sel).forEach(el => el.remove());
+            });
+            document.body.style.overflow = 'auto';
+            document.documentElement.style.overflow = 'auto';
+        """)
+        page.wait_for_timeout(1000)
+        
+        # Auto-scroll a few times to lazy-load more jobs
+        self.auto_scroll(page, scroll_count=5, delay_ms=1000)
+        
+        cards = page.query_selector_all("ul.jobs-search__results-list li, .job-search-card, .base-card")
+        logger.info(f"Guest LinkedIn found {len(cards)} job cards")
+        
+        raw_jobs = []
+        for card in cards:
+            try:
+                title_el = (
+                    card.query_selector(".base-search-card__title, .base-card__title, h3")
+                    or card.query_selector("a.job-card-list__title")
+                )
+                title = title_el.inner_text().strip() if title_el else ""
+                
+                link_el = card.query_selector("a.base-card__full-link, a")
+                href = link_el.get_attribute("href") if link_el else ""
+                url_clean = ""
+                if href:
+                    url_clean = href.split("?")[0]
+                    
+                company_el = (
+                    card.query_selector(".base-search-card__subtitle, .base-card__subtitle, h4")
+                    or card.query_selector(".job-card-container__company-name")
+                )
+                company = company_el.inner_text().strip() if company_el else "Unknown"
+                
+                loc_el = (
+                    card.query_selector(".job-search-card__location, span.job-search-card__location")
+                    or card.query_selector(".job-card-container__metadata-item")
+                )
+                loc = loc_el.inner_text().strip() if loc_el else "Indonesia"
+                
+                desc_el = card.query_selector(".job-search-card__snippet, [class*='description-snippet']")
+                desc = desc_el.inner_text().strip() if desc_el else ""
+                
+                if title and url_clean:
+                    raw_jobs.append({
+                        "title": title,
+                        "company": company,
+                        "location": loc,
+                        "description": desc or f"Job opportunity for a {title} at {company} in {loc}.",
+                        "url": url_clean,
+                    })
+            except Exception as card_err:
+                logger.debug(f"Error parsing guest LinkedIn job card: {card_err}")
+                
         return raw_jobs
 
     def _search_direct(self, page: Page, query: str, location: str) -> list[dict]:
