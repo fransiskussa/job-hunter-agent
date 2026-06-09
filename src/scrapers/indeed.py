@@ -17,7 +17,7 @@ class IndeedScraper(BaseScraper):
         logger.info(f"Searching Indeed jobs for '{query}' in '{location}' via Google")
         raw_jobs = []
 
-        context = self._new_context()
+        context = self._new_context("indeed")
         page = context.new_page()
         page.set_default_timeout(25000)
 

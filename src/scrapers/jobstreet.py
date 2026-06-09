@@ -18,7 +18,7 @@ class JobStreetScraper(BaseScraper):
         raw_jobs = []
         seen_urls = set()
 
-        context = self._new_context()
+        context = self._new_context("jobstreet")
         page = context.new_page()
         page.set_default_timeout(30000)
 

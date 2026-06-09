@@ -46,8 +46,8 @@ class BaseScraper(ABC):
             )
         return self._browser
 
-    def _new_context(self) -> BrowserContext:
-        """Create a fresh context with a random user-agent."""
+    def _new_context(self, platform_name: str = None) -> BrowserContext:
+        """Create a fresh context with a random user-agent and optional cookies."""
         browser = self._get_browser()
         ua = random.choice(USER_AGENTS)
         context = browser.new_context(
@@ -56,6 +56,19 @@ class BaseScraper(ABC):
             locale="id-ID",
             timezone_id="Asia/Jakarta",
         )
+        
+        # Load cookies from DB if platform name is provided
+        if platform_name:
+            cookies = self.repository.get_platform_cookies(platform_name)
+            if cookies:
+                try:
+                    context.add_cookies(cookies)
+                    logger.info(f"🔑 Loaded cookies for platform '{platform_name}' from DB")
+                except Exception as e:
+                    logger.error(f"❌ Failed to load cookies for '{platform_name}' from DB: {e}")
+            else:
+                logger.warning(f"⚠️ No cookies found in DB for platform: '{platform_name}'")
+
         # Inject stealth script to mask navigator.webdriver
         context.add_init_script("""
             Object.defineProperty(navigator, 'webdriver', {get: () => undefined});

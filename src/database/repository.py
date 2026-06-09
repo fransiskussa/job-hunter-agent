@@ -90,3 +90,28 @@ class JobRepository:
             }, on_conflict="source_name").execute()
         except Exception as e:
             logger.error(f"Error updating job source status: {e}")
+
+    def get_platform_cookies(self, platform_name: str) -> list[dict]:
+        """Fetch cookies for a specific platform from the database."""
+        try:
+            response = self.supabase.table("platform_sessions") \
+                .select("cookies") \
+                .eq("platform_name", platform_name.lower()) \
+                .execute()
+            if response.data:
+                return response.data[0].get("cookies", [])
+        except Exception as e:
+            logger.error(f"Error fetching cookies for {platform_name} from DB: {e}")
+        return []
+
+    def save_platform_cookies(self, platform_name: str, cookies: list[dict]):
+        """Save/upsert cookies for a specific platform to the database."""
+        try:
+            self.supabase.table("platform_sessions").upsert({
+                "platform_name": platform_name.lower(),
+                "cookies": cookies,
+                "updated_at": datetime.utcnow().isoformat()
+            }, on_conflict="platform_name").execute()
+            logger.info(f"Successfully saved/updated cookies for {platform_name} in DB.")
+        except Exception as e:
+            logger.error(f"Error saving cookies for {platform_name} to DB: {e}")
