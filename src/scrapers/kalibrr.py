@@ -190,6 +190,15 @@ class KalibrrScraper(BaseScraper):
         if not raw_data.get("title") or not raw_data.get("url"):
             return {}
 
+        url = raw_data.get("url", "").lower()
+        # Reject non-job URLs from Kalibrr (e.g. /employers, /login)
+        if "/employers" in url or "/login" in url or "/signup" in url or "/about" in url:
+            return {}
+            
+        # A valid job URL usually contains /c/ or /jobs/
+        if "/c/" not in url and "/jobs/" not in url:
+            return {}
+
         return {
             "source": "Kalibrr",
             "title": raw_data["title"],

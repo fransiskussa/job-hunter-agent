@@ -118,6 +118,11 @@ class IndeedScraper(BaseScraper):
         if not raw_data.get("title") or not raw_data.get("url"):
             return {}
 
+        url = raw_data.get("url", "").lower()
+        # Reject Google UI links or non-Indeed links
+        if "indeed.com" not in url or url.startswith("/search") or "google.com" in url:
+            return {}
+
         desc = raw_data.get("description") or f"Job opportunity for a {raw_data['title']} at {raw_data.get('company', 'Unknown')} in {raw_data.get('location', 'Indonesia')}."
 
         return {
