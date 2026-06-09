@@ -33,11 +33,11 @@ class KalibrrScraper(BaseScraper):
 
             # Multiple selector strategies
             cards = (
-                page.query_selector_all(".k-border-b")
+                page.query_selector_all("div[itemtype='http://schema.org/ItemList'] > div")
+                or page.query_selector_all(".k-border-b")
                 or page.query_selector_all("[itemscope][itemtype='http://schema.org/JobPosting']")
                 or page.query_selector_all("[class*='JobCard']")
                 or page.query_selector_all("[class*='job-card']")
-                or page.query_selector_all("a[href*='/c/'][href*='/jobs/']")
             )
             logger.info(f"Kalibrr found {len(cards)} cards after scroll")
 
@@ -67,7 +67,8 @@ class KalibrrScraper(BaseScraper):
                 self.auto_scroll(page, scroll_count=3, delay_ms=1500)
 
                 cards = (
-                    page.query_selector_all(".k-border-b")
+                    page.query_selector_all("div[itemtype='http://schema.org/ItemList'] > div")
+                    or page.query_selector_all(".k-border-b")
                     or page.query_selector_all("a[href*='/jobs/']")
                 )
                 logger.info(f"Kalibrr retry found {len(cards)} cards")

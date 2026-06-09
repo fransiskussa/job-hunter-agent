@@ -28,6 +28,7 @@ def scrape_platform_worker(platform_name, scraper_class, queries, primary_locati
     try:
         with sync_playwright() as p:
             scraper = scraper_class(p, repo)
+            normalized_dropped_count = 0
             for query in queries:
                 if len(platform_jobs) >= 50:
                     break
@@ -40,9 +41,14 @@ def scrape_platform_worker(platform_name, scraper_class, queries, primary_locati
                         score, matched_skills, breakdown = matcher.calculate_score(normalized, is_post=False)
                         # Tanpa filter ketat, semua lowongan hasil pencarian dimasukkan
                         platform_jobs.append(normalized)
+                    else:
+                        normalized_dropped_count += 1
+                        logger.warning(f"[{platform_name}] ⚠️ Data dropped silently during normalize(): {raw.get('title', 'Unknown')} -> {raw.get('url', '')}")
             scraper.close_browser()
             
         elapsed = round(time.time() - scraper_start, 1)
+        if normalized_dropped_count > 0:
+            logger.info(f"[{platform_name}] 📉 normalization dropped {normalized_dropped_count} items total.")
         logger.info(f"✅ {platform_name}: {len(platform_jobs)} jobs in {elapsed}s")
         repo.update_source_status(platform_name, "SUCCESS")
         return platform_name, platform_jobs, elapsed, "SUCCESS"
@@ -87,6 +93,7 @@ def scrape_linkedin_posts_worker(queries, primary_location, repo, notifier, matc
         from playwright.sync_api import sync_playwright
         with sync_playwright() as p:
             posts_scraper = LinkedInPostsScraper(p, repo)
+            normalized_dropped_count = 0
             for query in queries:
                 if len(platform_posts) >= 50:
                     break
@@ -99,9 +106,14 @@ def scrape_linkedin_posts_worker(queries, primary_location, repo, notifier, matc
                         score, matched_skills, breakdown = matcher.calculate_score(normalized, is_post=True)
                         # Tanpa filter ketat, semua post hasil pencarian dimasukkan
                         platform_posts.append(normalized)
+                    else:
+                        normalized_dropped_count += 1
+                        logger.warning(f"[LinkedIn Posts] ⚠️ Post dropped silently during normalize(): {raw.get('post_url', '')}")
             posts_scraper.close_browser()
             
         elapsed = round(time.time() - scraper_start, 1)
+        if normalized_dropped_count > 0:
+            logger.info(f"[LinkedIn Posts] 📉 normalization dropped {normalized_dropped_count} posts total.")
         logger.info(f"✅ LinkedIn Posts: {len(platform_posts)} posts in {elapsed}s")
         repo.update_source_status("LinkedIn Posts", "SUCCESS")
         return "LinkedIn Posts", platform_posts, elapsed, "SUCCESS"
