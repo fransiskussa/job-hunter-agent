@@ -84,8 +84,9 @@ class GoogleSheetsExporter:
                 skills_list = job.get("matched_skills", [])
                 skills_str = ", ".join(skills_list) if skills_list else "None"
                 
-                # Use raw URL instead of HYPERLINK formula since some users find formulas unclickable
+                # Make URL a clickable hyperlink
                 url = job.get("url", "")
+                hyperlink_formula = f'=HYPERLINK("{url}", "🔗 Apply Here")' if url else ""
                 
                 row = [
                     timestamp,
@@ -95,8 +96,8 @@ class GoogleSheetsExporter:
                     job.get("location", ""),
                     job.get("score", 0),
                     skills_str,
-                    "FALSE",  # User can set this to TRUE in Sheets via Data Validation (Checkbox)
-                    url
+                    "📝 To Apply",  # Default status
+                    hyperlink_formula
                 ]
                 rows_to_insert.append(row)
 
@@ -104,6 +105,85 @@ class GoogleSheetsExporter:
             if rows_to_insert:
                 self.sheet.append_rows(rows_to_insert, value_input_option='USER_ENTERED')
                 logger.info(f"✅ Successfully exported {len(rows_to_insert)} jobs to Google Sheets.")
+                
+            # Apply Dropdown and Colors to Status Column (Column H)
+            self._apply_status_formatting()
 
         except Exception as e:
             logger.error(f"Error exporting to Google Sheets: {e}")
+
+    def _apply_status_formatting(self):
+        """Apply Data Validation (Dropdown) and Conditional Formatting to Status column (H)."""
+        try:
+            sheet_id = self.sheet.id
+            
+            # Note: startColumnIndex=7 means Column H (0-indexed). endColumnIndex=8 is exclusive.
+            requests = [
+                # 1. Setup Dropdown
+                {
+                    "setDataValidation": {
+                        "range": {
+                            "sheetId": sheet_id,
+                            "startRowIndex": 1,
+                            "startColumnIndex": 7,
+                            "endColumnIndex": 8
+                        },
+                        "rule": {
+                            "condition": {
+                                "type": "ONE_OF_LIST",
+                                "values": [
+                                    {"userEnteredValue": "📝 To Apply"},
+                                    {"userEnteredValue": "✅ Applied"},
+                                    {"userEnteredValue": "⏳ In Process"},
+                                    {"userEnteredValue": "❌ Rejected"}
+                                ]
+                            },
+                            "showCustomUi": True,
+                            "strict": True
+                        }
+                    }
+                },
+                # 2. Conditional Format for Applied (Green) - ENTIRE ROW
+                {
+                    "addConditionalFormatRule": {
+                        "rule": {
+                            "ranges": [{"sheetId": sheet_id, "startRowIndex": 1, "startColumnIndex": 0, "endColumnIndex": 9}],
+                            "booleanRule": {
+                                "condition": {"type": "CUSTOM_FORMULA", "values": [{"userEnteredValue": '=$H2="✅ Applied"'}]},
+                                "format": {"backgroundColor": {"red": 0.85, "green": 0.93, "blue": 0.83}} # Light Green
+                            }
+                        },
+                        "index": 0
+                    }
+                },
+                # 3. Conditional Format for In Process (Yellow) - ENTIRE ROW
+                {
+                    "addConditionalFormatRule": {
+                        "rule": {
+                            "ranges": [{"sheetId": sheet_id, "startRowIndex": 1, "startColumnIndex": 0, "endColumnIndex": 9}],
+                            "booleanRule": {
+                                "condition": {"type": "CUSTOM_FORMULA", "values": [{"userEnteredValue": '=$H2="⏳ In Process"'}]},
+                                "format": {"backgroundColor": {"red": 1.0, "green": 0.95, "blue": 0.8}} # Light Yellow
+                            }
+                        },
+                        "index": 0
+                    }
+                },
+                # 4. Conditional Format for Rejected (Red) - ENTIRE ROW
+                {
+                    "addConditionalFormatRule": {
+                        "rule": {
+                            "ranges": [{"sheetId": sheet_id, "startRowIndex": 1, "startColumnIndex": 0, "endColumnIndex": 9}],
+                            "booleanRule": {
+                                "condition": {"type": "CUSTOM_FORMULA", "values": [{"userEnteredValue": '=$H2="❌ Rejected"'}]},
+                                "format": {"backgroundColor": {"red": 0.96, "green": 0.8, "blue": 0.8}} # Light Red
+                            }
+                        },
+                        "index": 0
+                    }
+                }
+            ]
+            
+            self.sheet.spreadsheet.batch_update({"requests": requests})
+        except Exception as e:
+            logger.debug(f"Could not apply advanced formatting to Google Sheets: {e}")
