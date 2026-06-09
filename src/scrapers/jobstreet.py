@@ -36,7 +36,7 @@ class JobStreetScraper(BaseScraper):
                     page.wait_for_timeout(4000)  # Wait for initial render
 
                     # Auto-scroll to trigger lazy-loading
-                    self.auto_scroll(page, scroll_count=4, delay_ms=1200)
+                    self.auto_scroll(page, scroll_count=10, delay_ms=1200)
 
                     # Try multiple card selectors (JobStreet/SEEK changes these)
                     cards = (

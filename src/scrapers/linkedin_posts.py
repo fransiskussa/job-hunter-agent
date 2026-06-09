@@ -47,12 +47,12 @@ class LinkedInPostsScraper(BaseScraper):
 
             # --- FALLBACK: GOOGLE SEARCH PROXY ---
             for template_idx, template in enumerate(self.SEARCH_TEMPLATES):
-                if len(raw_posts) >= 15:
+                if len(raw_posts) >= 25:
                     break
 
                 search_query = template.replace("{query}", query)
                 encoded = urllib.parse.quote(search_query)
-                url = f"https://www.google.com/search?q={encoded}&num=15&hl=id&tbs=qdr:m3"
+                url = f"https://www.google.com/search?q={encoded}&num=30&hl=id&tbs=qdr:m3"
 
                 logger.info(f"LinkedIn Posts search template {template_idx + 1}/{len(self.SEARCH_TEMPLATES)}")
                 
@@ -153,7 +153,7 @@ class LinkedInPostsScraper(BaseScraper):
         page.wait_for_timeout(5000)
         
         # Scroll to load dynamic posts
-        self.auto_scroll(page, scroll_count=3, delay_ms=1500)
+        self.auto_scroll(page, scroll_count=20, delay_ms=1500)
         
         post_blocks = (
             page.query_selector_all("div.search-content__feed-update")

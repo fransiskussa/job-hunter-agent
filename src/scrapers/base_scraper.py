@@ -93,13 +93,6 @@ class BaseScraper(ABC):
                         else:
                             c.pop("sameSite", None)
                             
-                        # Normalize domains (e.g. .www.linkedin.com -> .linkedin.com)
-                        domain = c.get("domain", "")
-                        if "linkedin.com" in domain and not domain.startswith("."):
-                            c["domain"] = "." + domain.replace("www.", "")
-                        elif domain.startswith(".www."):
-                            c["domain"] = domain.replace(".www.", ".")
-                        
                         # Remove non-standard properties
                         for key in ["hostOnly", "session", "storeId", "id", "partitionKey", "_crHasCrossSiteAncestor"]:
                             c.pop(key, None)

@@ -64,7 +64,7 @@ class KalibrrScraper(BaseScraper):
                 page.goto(alt_url, wait_until="domcontentloaded", timeout=30000)
                 self.check_session_validity(page, "Kalibrr")
                 page.wait_for_timeout(4000)
-                self.auto_scroll(page, scroll_count=3, delay_ms=1500)
+                self.auto_scroll(page, scroll_count=10, delay_ms=1500)
 
                 cards = (
                     page.query_selector_all("div[itemtype='http://schema.org/ItemList'] > div")
