@@ -28,8 +28,12 @@ def scrape_platform_worker(platform_name, scraper_class, queries, primary_locati
         with sync_playwright() as p:
             scraper = scraper_class(p, repo)
             for query in queries:
+                if len(platform_jobs) >= 50:
+                    break
                 raw_data_list = scraper.search(query, primary_location)
                 for raw in raw_data_list:
+                    if len(platform_jobs) >= 50:
+                        break
                     normalized = scraper.normalize(raw)
                     if normalized:
                         platform_jobs.append(normalized)
@@ -80,8 +84,12 @@ def scrape_linkedin_posts_worker(queries, primary_location, repo, notifier):
         with sync_playwright() as p:
             posts_scraper = LinkedInPostsScraper(p, repo)
             for query in queries:
+                if len(platform_posts) >= 50:
+                    break
                 raw_posts = posts_scraper.search(query, primary_location)
                 for raw in raw_posts:
+                    if len(platform_posts) >= 50:
+                        break
                     normalized = posts_scraper.normalize(raw)
                     if normalized:
                         platform_posts.append(normalized)
