@@ -106,6 +106,10 @@ class LinkedInScraper(BaseScraper):
 
 
 
+    def extract(self, element_or_page) -> dict:
+        # Not used — extraction happens in _search_direct()
+        return {}
+
     def normalize(self, raw_data: dict) -> dict:
         if not raw_data.get("title") or not raw_data.get("url"):
             return {}
