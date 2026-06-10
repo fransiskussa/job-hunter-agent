@@ -1,0 +1,13 @@
+name: Echo time2
+on: 
+  schedule: 
+    - cron: '5 * * * *'  
+  workflow_dispatch:        
+
+jobs:
+  automated_test_1:
+    name: Echo time
+    runs-on: ubuntu-latest
+    steps:
+      - name: Show repository info
+        run: echo "hello world"
