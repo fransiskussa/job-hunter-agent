@@ -1,0 +1,10 @@
+2026/06/10-20:53:57.059 2c28 Reusing MANIFEST E:\antigravity excel\new\scraper_project\src\chrome_profile\Default\Local Storage\leveldb/MANIFEST-000001
+2026/06/10-20:53:57.067 2c28 Recovering log #13
+2026/06/10-20:53:57.067 2c28 Level-0 table #16: started
+2026/06/10-20:53:57.072 2c28 Level-0 table #16: 40638 bytes OK
+2026/06/10-20:53:57.072 2c28 Recovering log #16
+2026/06/10-20:53:57.073 2c28 Reusing old log E:\antigravity excel\new\scraper_project\src\chrome_profile\Default\Local Storage\leveldb/000016.log 
+2026/06/10-20:53:57.075 2c28 Delete type=0 #13
+2026/06/10-20:54:57.087 3a94 Level-0 table #18: started
+2026/06/10-20:54:57.109 3a94 Level-0 table #18: 49273 bytes OK
+2026/06/10-20:54:57.111 3a94 Delete type=0 #16

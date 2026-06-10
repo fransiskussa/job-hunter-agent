@@ -1,0 +1,14 @@
+{
+  "name": "steam-workshop-downloader",
+  "description": "Download steam workshop files directly from your browser via steamworkshop.download",
+  "version": "0.0.4",
+  "main": "index.js",
+  "license": "MIT",
+  "scripts": {
+    "start": "web-ext run --firefox=\"C:/Program Files/Firefox Developer Edition/firefox.exe\"",
+    "build": "web-ext build --overwrite-dest"
+  },
+  "devDependencies": {
+    "web-ext": "^6.0.0"
+  }
+}

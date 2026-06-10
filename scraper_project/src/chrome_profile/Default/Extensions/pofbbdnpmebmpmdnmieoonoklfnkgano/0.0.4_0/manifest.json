@@ -1,0 +1,19 @@
+{
+   "content_scripts": [ {
+      "js": [ "content_script.js" ],
+      "matches": [ "*://steamcommunity.com/sharedfiles/filedetails/?id=*", "*://steamcommunity.com/workshop/filedetails/?id=*" ]
+   } ],
+   "content_security_policy": {
+   },
+   "description": "Download steam workshop files directly from your browser via steamworkshop.download",
+   "host_permissions": [ "*://steamcommunity.com/sharedfiles/filedetails/?id=*" ],
+   "icons": {
+      "96": "icons/icon.png"
+   },
+   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAh9wCfqIvXwNl2cBOFaBg0B0m0Qi26an2s0WlA+eBvJCZTSwp82IiVdALH9hucWA27vpwB3r5z2MMKIA/WKmX7X9ygiQ1Hi4oZ/BS6q3X7PfbZW6IXE7bHOBVrqajBpo/5W07Qod+EXPf5tGP53uC7wlSniVhnXcU9PxTLMulGzEguBXW90QaSQnJ7g2KcRr0ew0z1caShEjPCXTF3y7LuidG7paAuPgi+bqgNoy2j6v2mcLu4BXj7lKf7SIUjd+GETJ7hqVtypiQM8Kqr3BRlqIqw2PiYCmGGst35VsYDG3joxHRuyojvyOaV7sqJ8WIaEMXSwRuOlviARJGs0L2XwIDAQAB",
+   "manifest_version": 3,
+   "name": "Steam Workshop Downloader",
+   "permissions": [  ],
+   "update_url": "https://clients2.google.com/service/update2/crx",
+   "version": "0.0.4"
+}
