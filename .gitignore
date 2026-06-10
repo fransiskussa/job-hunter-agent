@@ -3,3 +3,4 @@ scratch_generate_sql.py
 linkedin_cookies.json
 linkedin_login_tool.py
 src/database/__pycache__/repository.cpython-314.pyc
+google_credentials.json
