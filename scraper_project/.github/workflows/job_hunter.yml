@@ -3,7 +3,7 @@ name: Job Hunter Agent
 on:
   schedule:
     # 18:02 WIB (11:02 UTC) untuk testing
-    - cron: '*/5 * * * *'
+    - cron: '0 * * * *'
   workflow_dispatch: # Memungkinkan trigger manual
 
 jobs:
@@ -19,8 +19,10 @@ jobs:
       with:
         python-version: '3.12'
         cache: 'pip'
+        cache-dependency-path: scraper_project/requirements.txt
 
     - name: Install Dependencies
+      working-directory: scraper_project
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
@@ -30,19 +32,25 @@ jobs:
       uses: actions/cache@v4
       with:
         path: ~/.cache/ms-playwright
-        key: ${{ runner.os }}-playwright-${{ hashFiles('requirements.txt') }}
+        key: ${{ runner.os }}-playwright-${{ hashFiles('scraper_project/requirements.txt') }}
 
     - name: Install Playwright Browsers with Deps
       if: steps.playwright-cache.outputs.cache-hit != 'true'
+      working-directory: scraper_project
       run: |
         playwright install chromium --with-deps
 
     - name: Install Playwright System Deps Only
       if: steps.playwright-cache.outputs.cache-hit == 'true'
+      working-directory: scraper_project
       run: |
         playwright install-deps chromium
+        
+    - name: Install xvfb (Virtual Display)
+      run: sudo apt-get install -y xvfb
 
     - name: Run Job Hunter Pipeline
+      working-directory: scraper_project
       env:
         SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
         SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
@@ -52,4 +60,4 @@ jobs:
         GOOGLE_CREDENTIALS_JSON: ${{ secrets.GOOGLE_CREDENTIALS_JSON }}
         PYTHONPATH: .
       run: |
-        python src/main.py
+        xvfb-run -a python src/workflows/run_pipeline.py
