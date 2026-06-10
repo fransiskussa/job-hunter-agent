@@ -1,4 +1,4 @@
-name: Job Hunter Agent
+name: Job Hunter Agent new
 
 on:
   schedule:
@@ -9,6 +9,9 @@ on:
 jobs:
   run-pipeline:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: scraper_project
 
     steps:
     - name: Checkout Code
